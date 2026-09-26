@@ -195,6 +195,8 @@ async def run_byc_pipeline(
         db=db,
         question=f"important things to know before changing {service_name}",
         project_id=project_id,
+        scope_type="service",
+        scope_id=service_id,
     )
 
     byc_question = f"What are the most important things to know before changing {service_name}?"

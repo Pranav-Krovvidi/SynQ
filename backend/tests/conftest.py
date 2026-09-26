@@ -96,3 +96,26 @@ def override_db(setup_db):
     app.dependency_overrides[get_db] = _get_test_db
     yield
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# Stub the embedder — no test should reach Gemini over the network.
+# Individual tests can still patch embed_texts with their own fake.
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def stub_embedder(monkeypatch):
+    from app.core.config import settings
+
+    async def _fake_embed_texts(texts, task_type=None):
+        # Deterministic non-zero vectors of the configured width.
+        return [
+            [((i + 1) % 10) / 10.0] * settings.embedding_dimension
+            for i, _ in enumerate(texts)
+        ]
+
+    monkeypatch.setattr(
+        "app.ingestion.pipeline.embed_texts", _fake_embed_texts, raising=True
+    )
+    monkeypatch.setattr(
+        "app.rag.retriever.embed_texts", _fake_embed_texts, raising=True
+    )

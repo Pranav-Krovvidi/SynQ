@@ -1,16 +1,15 @@
 """
-app.rag.llm_client — watsonx.ai streaming LLM client.
+app.rag.llm_client — Google AI Studio (Gemini) streaming LLM client.
 
-Wraps ``ibm_watsonx_ai.foundation_models.ModelInference.generate_text_stream()``
-and exposes an async generator of text token strings.
+Wraps ``google.genai`` ``aio.models.generate_content_stream()`` and exposes an
+async generator of text chunk strings.
 
-The SDK call is synchronous, so we run it inside ``asyncio.to_thread`` to
-avoid blocking the event loop.
+The SDK ships a native async client, so tokens are forwarded to the caller as
+the model produces them — no thread offloading or queue bridging required.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -25,73 +24,53 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DEFAULT_PARAMS = {
-    "max_new_tokens": 1024,
+    "max_output_tokens": 1024,
     "temperature": 0.1,       # low temperature = more grounded, less creative
-    "repetition_penalty": 1.1,
 }
 
 
 @lru_cache(maxsize=1)
-def _get_model():
+def _get_client():
     """
-    Lazily initialise the watsonx ModelInference client (one per process).
+    Lazily initialise the Gemini client (one per process).
 
-    The SDK constructor is synchronous, so we cache the result.
+    Imported inside the function so the module can be imported — and the rest
+    of the app can start — without google-genai present or a key configured.
     """
-    from ibm_watsonx_ai import Credentials
-    from ibm_watsonx_ai.foundation_models import ModelInference
+    from google import genai
 
-    credentials = Credentials(
-        url=settings.watsonx_url,
-        api_key=settings.watsonx_api_key,
-    )
-    return ModelInference(
-        model_id=settings.llm_model_id,
-        credentials=credentials,
-        project_id=settings.watsonx_project_id,
-        params=_DEFAULT_PARAMS,
-    )
+    if not settings.google_api_key:
+        raise RuntimeError(
+            "GOOGLE_API_KEY is not set. Get a free key at "
+            "https://aistudio.google.com/apikey"
+        )
+    return genai.Client(api_key=settings.google_api_key)
 
 
-def _build_messages(
-    system_prompt: str,
+def _build_contents(
     user_prompt: str,
     conversation_history: list[dict] | None,
 ) -> list[dict]:
-    """Assemble the messages list for the chat endpoint."""
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    """
+    Assemble Gemini ``contents`` from the prior turns plus the new prompt.
+
+    Gemini names the assistant role ``model``, not ``assistant``, so the
+    history roles used elsewhere in the app are translated here.  The system
+    prompt is *not* part of ``contents`` — it goes in ``system_instruction``.
+    """
+    contents: list[dict] = []
 
     if conversation_history:
         # Cap at 10 turns (20 messages) to avoid context overflow
-        history = conversation_history[-20:]
-        messages.extend(history)
+        for message in conversation_history[-20:]:
+            role = "model" if message.get("role") == "assistant" else "user"
+            contents.append({
+                "role": role,
+                "parts": [{"text": message.get("content") or ""}],
+            })
 
-    messages.append({"role": "user", "content": user_prompt})
-    return messages
-
-
-def _stream_sync(messages: list[dict]) -> list[str]:
-    """
-    Call the watsonx streaming API synchronously.
-
-    Returns a list of token strings.  We collect them all here so the
-    thread can finish cleanly; the async layer re-yields them one by one.
-    """
-    model = _get_model()
-    tokens: list[str] = []
-    try:
-        for chunk in model.chat_stream(messages=messages):
-            # SDK yields dicts: {"choices": [{"delta": {"content": "..."}}]}
-            choices = chunk.get("choices") or []
-            for choice in choices:
-                delta = choice.get("delta") or {}
-                content = delta.get("content") or ""
-                if content:
-                    tokens.append(content)
-    except Exception as exc:
-        logger.error("watsonx streaming error: %s", exc)
-        raise
-    return tokens
+    contents.append({"role": "user", "parts": [{"text": user_prompt}]})
+    return contents
 
 
 async def stream_tokens(
@@ -100,16 +79,13 @@ async def stream_tokens(
     conversation_history: list[dict] | None = None,
 ) -> AsyncIterator[str]:
     """
-    Async generator that yields token strings from the watsonx LLM.
-
-    The blocking SDK call is offloaded to a thread pool via
-    ``asyncio.to_thread``.  All tokens are collected in the thread,
-    then yielded one-by-one here so the event loop stays unblocked.
+    Async generator yielding text chunks from the Gemini model.
 
     Parameters
     ----------
     system_prompt:
-        The system instruction (e.g. ``SYSTEM_PROMPT`` from prompts.py).
+        The system instruction (e.g. ``SYSTEM_PROMPT`` from prompts.py), passed
+        as ``system_instruction`` rather than as a message.
     user_prompt:
         The assembled user message (question + context).
     conversation_history:
@@ -119,14 +95,34 @@ async def stream_tokens(
     Yields
     ------
     str
-        Individual token strings in generation order.
+        Text chunks in generation order.
+
+    Raises
+    ------
+    RuntimeError
+        If the API call fails — including mid-stream, after some chunks have
+        already been yielded.
     """
-    messages = _build_messages(system_prompt, user_prompt, conversation_history)
+    from google.genai import types
+
+    client = _get_client()
+    contents = _build_contents(user_prompt, conversation_history)
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        **_DEFAULT_PARAMS,
+    )
 
     try:
-        tokens = await asyncio.to_thread(_stream_sync, messages)
+        stream = await client.aio.models.generate_content_stream(
+            model=settings.llm_model_id,
+            contents=contents,
+            config=config,
+        )
+        async for chunk in stream:
+            # A chunk can carry no text (safety blocks, usage-only deltas).
+            text = getattr(chunk, "text", None)
+            if text:
+                yield text
     except Exception as exc:
+        logger.error("Gemini streaming error: %s", exc)
         raise RuntimeError(f"LLM call failed: {exc}") from exc
-
-    for token in tokens:
-        yield token

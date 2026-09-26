@@ -13,7 +13,7 @@ SynQ creates a connected knowledge layer across people, projects, services, arch
 | Frontend | React 18 + TypeScript + Vite + IBM Carbon |
 | Backend | FastAPI (Python 3.11) |
 | Database | PostgreSQL 15 + pgvector |
-| AI | IBM watsonx.ai (Granite + Slate) |
+| AI | Google AI Studio — Gemini (chat + embeddings) |
 | Streaming | Server-Sent Events (SSE) |
 | Containers | Docker + Docker Compose |
 
@@ -24,7 +24,7 @@ SynQ creates a connected knowledge layer across people, projects, services, arch
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Compose plugin)
 - [Node.js 20+](https://nodejs.org/) (for frontend development without Docker)
 - [Python 3.11+](https://www.python.org/) (for backend development without Docker)
-- watsonx.ai API key and Project ID (from IBM Cloud or your hackathon portal)
+- A Google AI Studio API key — free, no credit card: https://aistudio.google.com/apikey
 
 ---
 
@@ -37,7 +37,7 @@ cd synq
 
 # 2. Create your .env file
 cp .env.example .env
-# Edit .env and add your WATSONX_API_KEY and WATSONX_PROJECT_ID
+# Edit .env and add your GOOGLE_API_KEY
 
 # 3. Start the full stack
 docker compose up
@@ -145,8 +145,10 @@ The minimum set to run locally:
 
 | Variable | Description |
 |---|---|
-| `WATSONX_API_KEY` | IBM watsonx.ai API key |
-| `WATSONX_PROJECT_ID` | watsonx.ai project ID |
+| `GOOGLE_API_KEY` | Google AI Studio API key ([get one free](https://aistudio.google.com/apikey)) |
+| `LLM_MODEL_ID` | Chat model (default `gemini-3.6-flash`) |
+| `EMBEDDING_MODEL_ID` | Embedding model (default `gemini-embedding-001`) |
+| `EMBEDDING_DIMENSION` | Vector width — must match the pgvector column (default `768`) |
 | `JWT_SECRET` | Secret key for signing JWTs |
 | `DATABASE_URL` | PostgreSQL connection string |
 

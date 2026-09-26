@@ -13,7 +13,7 @@ Creates:
   - adrs
   - adr_services  (join table)
   - documents
-  - chunks        (with vector(384) embedding column)
+  - chunks        (embedding column width = settings.embedding_dimension)
   - query_logs
 """
 
@@ -22,6 +22,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
+
+from app.core.config import settings
 
 # revision identifiers
 revision: str = "0001_initial_schema"
@@ -186,7 +188,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("token_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("chunk_index", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column("embedding", Vector(settings.embedding_dimension), nullable=True),
         sa.Column("document_id", sa.UUID(), sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=True),
         sa.Column("adr_id", sa.UUID(), sa.ForeignKey("adrs.id", ondelete="CASCADE"), nullable=True),
         sa.Column(

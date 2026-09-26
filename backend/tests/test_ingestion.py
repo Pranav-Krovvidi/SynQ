@@ -7,7 +7,7 @@ chunker tests
     - ADR body chunking
 
 pipeline / endpoint tests
-    - mock embed_texts so no watsonx credentials are needed
+    - mock embed_texts so no Gemini credentials are needed
     - POST /projects/{id}/ingest returns 201 and a DocumentOut
     - unsupported MIME type returns 415
     - file too large returns 413

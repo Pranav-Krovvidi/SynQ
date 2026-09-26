@@ -9,7 +9,7 @@ Flow
   chunker.chunk_bytes()          ← extract text + split into TextChunks
       │
       ▼
-  embedder.embed_texts()         ← call watsonx slate-125m for each chunk
+  embedder.embed_texts()         ← call Gemini embeddings for each chunk
       │
       ▼
   persist Document + Chunks      ← write to PostgreSQL via SQLAlchemy
@@ -51,7 +51,7 @@ async def ingest_document(
 
     1. Persist a ``Document`` row.
     2. Extract text and split into chunks.
-    3. Embed all chunks in batches via watsonx.
+    3. Embed all chunks in batches via Gemini.
     4. Persist ``Chunk`` rows with embeddings.
 
     Parameters

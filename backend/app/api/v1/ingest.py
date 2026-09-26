@@ -44,7 +44,7 @@ _MAX_BYTES = 50 * 1024 * 1024
     description=(
         "Upload a PDF, Markdown, or plain-text file to the project. "
         "The file is extracted, chunked (~512 tokens/chunk), embedded via "
-        "watsonx slate-125m, and stored in the vector store. "
+        "Gemini gemini-embedding-001, and stored in the vector store. "
         "Returns the created Document record."
     ),
 )

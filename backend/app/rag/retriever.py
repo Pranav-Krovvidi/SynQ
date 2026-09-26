@@ -3,7 +3,7 @@ app.rag.retriever — hybrid (semantic + keyword) chunk retrieval with RRF merge
 
 Algorithm
 ---------
-1. Embed the query text via watsonx.
+1. Embed the query text via Gemini.
 2. Run a cosine-similarity vector search on ``chunks``.
 3. Run a full-text keyword search on ``chunks`` using tsvector.
 4. Merge and re-rank the two result sets with Reciprocal Rank Fusion (k=60).
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ingestion.embedder import embed_texts
+from app.ingestion.embedder import TASK_QUERY, embed_texts
 from app.models.document import Chunk
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,40 @@ def _rrf_merge(
 
 
 # ---------------------------------------------------------------------------
+# Scope filter
+# ---------------------------------------------------------------------------
+
+def _scope_filter(
+    scope_type: str | None,
+    scope_id: uuid.UUID | None,
+    params: dict,
+) -> str:
+    """
+    Return an extra SQL predicate narrowing retrieval to a single entity,
+    adding any bind parameters it needs to *params*.
+
+    A service owns no chunks directly — it is linked to ADRs through the
+    ``adr_services`` join table — so a service scope resolves through that
+    table.  Returns "" when there is nothing to narrow by.
+    """
+    if not scope_id or scope_type not in ("adr", "document", "service"):
+        return ""
+
+    params["scope_id"] = str(scope_id)
+
+    if scope_type == "adr":
+        return "AND c.adr_id = :scope_id"
+    if scope_type == "document":
+        return "AND c.document_id = :scope_id"
+    return (
+        "AND c.adr_id IN ("
+        " SELECT asvc.adr_id FROM adr_services asvc"
+        " WHERE asvc.service_id = :scope_id"
+        ")"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Semantic search
 # ---------------------------------------------------------------------------
 
@@ -100,13 +134,7 @@ async def _semantic_search(
         "limit": limit,
     }
 
-    scope_filter = ""
-    if scope_type == "adr" and scope_id:
-        scope_filter = "AND c.adr_id = :scope_id"
-        params["scope_id"] = str(scope_id)
-    elif scope_type == "document" and scope_id:
-        scope_filter = "AND c.document_id = :scope_id"
-        params["scope_id"] = str(scope_id)
+    scope_filter = _scope_filter(scope_type, scope_id, params)
 
     sql = text(f"""
         SELECT c.id
@@ -134,6 +162,8 @@ async def _keyword_search(
     keywords: str,
     project_id: uuid.UUID,
     limit: int,
+    scope_type: str | None = None,
+    scope_id: uuid.UUID | None = None,
 ) -> list[uuid.UUID]:
     """
     Return chunk IDs ranked by full-text ts_rank.
@@ -148,7 +178,14 @@ async def _keyword_search(
         return []
     tsquery = " | ".join(tokens)  # OR across all tokens
 
-    sql = text("""
+    params: dict = {
+        "tsquery": tsquery,
+        "project_id": str(project_id),
+        "limit": limit,
+    }
+    scope_filter = _scope_filter(scope_type, scope_id, params)
+
+    sql = text(f"""
         SELECT c.id
         FROM chunks c
         LEFT JOIN documents d ON d.id = c.document_id
@@ -156,15 +193,12 @@ async def _keyword_search(
         WHERE
             to_tsvector('english', c.content) @@ to_tsquery('english', :tsquery)
             AND (d.project_id = :project_id OR a.project_id = :project_id)
+            {scope_filter}
         ORDER BY ts_rank(to_tsvector('english', c.content), to_tsquery('english', :tsquery)) DESC
         LIMIT :limit
     """)
 
-    result = await db.execute(sql, {
-        "tsquery": tsquery,
-        "project_id": str(project_id),
-        "limit": limit,
-    })
+    result = await db.execute(sql, params)
     return [row[0] for row in result.fetchall()]
 
 
@@ -196,19 +230,34 @@ async def retrieve_chunks(
     -------
     List of :class:`RetrievedChunk`, ranked best-first.
     """
-    # 1. Embed the question
-    vectors = await embed_texts([question])
+    # 1. Embed the question — as a QUERY, not a document. Gemini embeds the
+    # two roles differently and retrieval is measurably better when the
+    # asymmetry is respected.
+    vectors = await embed_texts([question], task_type=TASK_QUERY)
     query_vector = vectors[0]
 
-    # 2. Semantic search
-    sem_ids = await _semantic_search(
-        db, query_vector, project_id, scope_type, scope_id, DEFAULT_SEMANTIC_LIMIT
-    )
-    logger.debug("Semantic search returned %d chunks", len(sem_ids))
-
-    # 3. Keyword search
-    kw_ids = await _keyword_search(db, question, project_id, DEFAULT_KEYWORD_LIMIT)
-    logger.debug("Keyword search returned %d chunks", len(kw_ids))
+    # 2. + 3. Hybrid search, scoped if a scope was requested.  A scope that
+    # matches nothing falls back to project-wide retrieval so a narrow
+    # question never returns an empty answer.
+    for attempt_scope_type, attempt_scope_id in (
+        (scope_type, scope_id),
+        (None, None),
+    ):
+        sem_ids = await _semantic_search(
+            db, query_vector, project_id,
+            attempt_scope_type, attempt_scope_id, DEFAULT_SEMANTIC_LIMIT,
+        )
+        kw_ids = await _keyword_search(
+            db, question, project_id, DEFAULT_KEYWORD_LIMIT,
+            attempt_scope_type, attempt_scope_id,
+        )
+        logger.debug(
+            "scope=%s → %d semantic, %d keyword chunks",
+            attempt_scope_type, len(sem_ids), len(kw_ids),
+        )
+        if sem_ids or kw_ids or attempt_scope_type is None:
+            break
+        logger.debug("No chunks in scope %s — retrying project-wide", scope_type)
 
     # 4. RRF merge
     merged = _rrf_merge(sem_ids, kw_ids)[:top_n]
