@@ -6,7 +6,7 @@ version: "3.9"
 # Starts three services:
 #   postgres  — PostgreSQL 15 with pgvector extension
 #   backend   — FastAPI with hot-reload (python:3.11-slim target)
-#   frontend  — Vite dev server with hot-reload (node:20-alpine target)
+#   frontend  — Next.js 15 dev server (node:20-alpine target)
 #
 # Usage:
 #   docker compose up            # start all services
@@ -57,25 +57,21 @@ services:
         condition: service_healthy
 
   # -----------------------------------------------------------
-  # React + Vite frontend
+  # Next.js 15 frontend (SinQ UI)
   # -----------------------------------------------------------
   frontend:
     build:
-      context: ./frontend
+      context: ./SinQ(UI)
       target: development
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: ""   # empty = use Vite proxy (see vite.config.ts)
-      BACKEND_ORIGIN: "http://backend:8000"  # proxy target inside the compose network
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/api/v1"
     ports:
-      - "5173:5173"
+      - "3000:3000"
     volumes:
-      # Mount the whole project so Vite can see index.html, vite.config.ts and
-      # tsconfig.json — the dev image only installs dependencies.  The bare
-      # /app/node_modules entry keeps the image's installed modules from being
-      # shadowed by the host mount.
-      - ./frontend:/app
+      - "./SinQ(UI):/app"
       - /app/node_modules
+      - /app/.next
     depends_on:
       - backend
 

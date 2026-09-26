@@ -36,6 +36,7 @@ app.add_middleware(
 # Liveness probe — used by Docker Compose, Code Engine, and load balancers
 # ---------------------------------------------------------------------------
 @app.get("/health", tags=["system"])
+@app.get("/healthz", tags=["system"])   # alias polled by the frontend
 async def health() -> dict:
     return {"status": "ok", "version": "0.1.0"}
 
