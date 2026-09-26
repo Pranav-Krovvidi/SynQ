@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     # CORS
     # ------------------------------------------------------------------
     cors_origins: list[str] = [
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # alternative local port
+        "http://localhost:3000",   # Next.js dev server
+        "http://localhost:8000",   # direct backend access
         "https://synq.vercel.app", # production Vercel deployment
     ]
 
