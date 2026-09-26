@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { mockChatHistory, followUpSuggestions } from '@/lib/mockData';
 import { useProjectCatalog } from '@/lib/useLiveCatalog';
-import type { CatalogAdr, CatalogIncident, CatalogService } from '@/lib/api';
+import type { CatalogAdr, CatalogService } from '@/lib/api';
 import type { ChatMessage, ChatSource } from '@/lib/mockData';
 import { streamChat, type SSEEvent } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -11,58 +11,59 @@ import ChatMessageBubble from './ChatMessageBubble';
 import SourcePanel from './SourcePanel';
 import ChatInput from './ChatInput';
 import { Sparkles, Info, Shield, ChevronRight, WifiOff } from 'lucide-react';
-import { mockServices, mockADRs, mockIncidents } from '@/lib/mockData';
+import { mockServices, mockADRs, mockIncidents, dashboardMetrics } from '@/lib/mockData';
 
 // ── Demo project ID (matches seed_demo.py NovaPay Platform) ──────────────────
 // In production this would come from auth context. For the demo we use proj-001.
-const DEMO_PROJECT_ID = process.env.NEXT_PUBLIC_DEMO_PROJECT_ID ?? ''
+const DEMO_PROJECT_ID = process.env.NEXT_PUBLIC_DEMO_PROJECT_ID ?? '';
 
 function useBackendAvailable() {
-  const [available, setAvailable] = useState<boolean | null>(null)
+  const [available, setAvailable] = useState<boolean | null>(null);
   useEffect(() => {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api/v1'
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api/v1';
     fetch(`${base.replace(/\/api\/v1$/, '')}/healthz`, { method: 'GET' })
       .then((r) => setAvailable(r.ok))
-      .catch(() => setAvailable(false))
-  }, [])
-  return available
+      .catch(() => setAvailable(false));
+  }, []);
+  return available;
 }
 
 export default function ChatInterface() {
-  const { currentProject } = useAuth();
-  // The chat used to query NEXT_PUBLIC_DEMO_PROJECT_ID regardless of the
-  // selected project, so questions about one project were answered from
-  // another. The env value is now only a fallback.
-  const projectId = currentProject?.id ?? DEMO_PROJECT_ID;
+  const { user } = useAuth();
   const backendAvailable = useBackendAvailable();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null)
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [streamingText, setStreamingText] = useState('')
-  const [inputValue, setInputValue] = useState('')
-  const [sourcePanelOpen, setSourcePanelOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  // Start empty against a real backend — a seeded transcript reads as though
+  // the user already asked something. The sample exchange is demo-mode only.
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingText])
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingText]);
+
+  useEffect(() => {
+    if (backendAvailable === false) setMessages(mockChatHistory);
+  }, [backendAvailable]);
 
   // Read pre-filled query from URL (?q=...)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const q = params.get('q')
-    if (q) setInputValue(decodeURIComponent(q))
-  }, [])
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q) setInputValue(decodeURIComponent(q));
+  }, []);
 
   // Prompts are built from this project's real ADRs and services. The bundled
   // list named entities (INC-127, ADR-042) that exist only in the fixtures, so
   // every one of them came back "not enough evidence".
   const { data: liveAdrs } = useProjectCatalog<CatalogAdr>('/catalog/adrs');
   const { data: liveServices } = useProjectCatalog<CatalogService>('/catalog/services');
-  const { data: liveIncidents } = useProjectCatalog<CatalogIncident>('/catalog/incidents');
 
   const suggestions = useMemo(() => {
     const out: string[] = [];
@@ -88,8 +89,8 @@ export default function ChatInterface() {
 
   const handleSend = useCallback(
     (text: string) => {
-      if (!text.trim() || isStreaming) return
-      setError(null)
+      if (!text.trim() || isStreaming) return;
+      setError(null);
 
       const userMsg: ChatMessage = {
         id: `msg-user-${Date.now()}`,
@@ -100,43 +101,45 @@ export default function ChatInterface() {
           minute: '2-digit',
           hour12: true,
         }),
-      }
+      };
 
-      // The updater stays pure. React invokes updaters twice under StrictMode,
-      // so starting the request inside one sent every question twice.
-      const next = [...messages, userMsg]
-      setMessages(next)
+      // The state updater stays pure. React invokes updaters twice under
+      // StrictMode, so starting the request inside one sent every question
+      // twice and appended two identical answers.
+      const next = [...messages, userMsg];
+      setMessages(next);
 
-      if (backendAvailable && projectId) {
-        setIsStreaming(true)
-        setStreamingText('')
+      // ── Real backend path ───────────────────────────────────────────────
+      if (backendAvailable && DEMO_PROJECT_ID) {
+        setIsStreaming(true);
+        setStreamingText('');
 
-        let accumulated = ''
-        let citations: ChatSource[] = []
+        let accumulated = '';
+        let citations: ChatSource[] = [];
 
         abortRef.current = streamChat(
-          projectId,
+          DEMO_PROJECT_ID,
           text,
           buildHistory(next),
           (evt: SSEEvent) => {
             if (evt.event === 'token') {
               // The server sends {"delta": "..."}, not a bare string.
               try {
-                accumulated += (JSON.parse(evt.data) as { delta?: string }).delta ?? ''
+                accumulated += (JSON.parse(evt.data) as { delta?: string }).delta ?? '';
               } catch {
-                accumulated += evt.data
+                accumulated += evt.data;
               }
-              setStreamingText(accumulated)
+              setStreamingText(accumulated);
             } else if (evt.event === 'citations') {
               try {
                 const payload = JSON.parse(evt.data) as {
                   citations?: Array<{
-                    entity_type: string
-                    entity_id: string
-                    entity_title: string
-                    snippet: string
-                  }>
-                }
+                    entity_type: string;
+                    entity_id: string;
+                    entity_title: string;
+                    snippet: string;
+                  }>;
+                };
                 citations = (payload.citations ?? []).map((c, i) => ({
                   id: `cit-${i}`,
                   type: (c.entity_type === 'adr'
@@ -149,7 +152,7 @@ export default function ChatInterface() {
                   date: '',
                   excerpt: c.snippet,
                   confidence: 90 - i * 5,
-                }))
+                }));
               } catch {
                 /* ignore parse errors */
               }
@@ -166,48 +169,51 @@ export default function ChatInterface() {
                 minute: '2-digit',
                 hour12: true,
               }),
-            }
-            setMessages((prev) => [...prev, aiMsg])
-            setStreamingText('')
-            setIsStreaming(false)
+            };
+            setMessages((prev) => [...prev, aiMsg]);
+            setStreamingText('');
+            setIsStreaming(false);
           },
           (err) => {
-            setError(err)
-            setIsStreaming(false)
-            setStreamingText('')
+            setError(err);
+            setIsStreaming(false);
+            setStreamingText('');
           }
-        )
+        );
       } else {
-        setIsStreaming(true)
+        // ── Mock fallback (no backend / no project ID) ─────────────────────
+        setIsStreaming(true);
         setTimeout(() => {
           const aiMsg: ChatMessage = {
             id: `msg-ai-${Date.now()}`,
             role: 'assistant',
-            content: `**SynQ demo mode** — backend not connected.\n\nConnect the backend and set \`NEXT_PUBLIC_API_BASE_URL\` to enable live AI responses.`,
+            content: `**SynQ demo mode** — backend not connected.\n\nYour question about **"${text}"** would be answered by searching ${mockServices.length} services, ${mockADRs.length} ADRs, and ${mockIncidents.length} incidents in your NovaPay knowledge base.\n\nConnect the backend and add \`NEXT_PUBLIC_API_BASE_URL\` + \`NEXT_PUBLIC_DEMO_PROJECT_ID\` to your environment to enable live AI responses.`,
             timestamp: new Date().toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
               hour12: true,
             }),
-          }
-          setMessages((prev) => [...prev, aiMsg])
-          setIsStreaming(false)
-        }, 900)
+          };
+          setMessages((prev) => [...prev, aiMsg]);
+          setIsStreaming(false);
+        }, 900);
       }
     },
-    [isStreaming, backendAvailable, buildHistory, messages, projectId]
-  )
+    [isStreaming, backendAvailable, buildHistory, messages]
+  );
 
   const handleStop = () => {
-    abortRef.current?.abort()
-    setIsStreaming(false)
-    setStreamingText('')
-  }
+    abortRef.current?.abort();
+    setIsStreaming(false);
+    setStreamingText('');
+  };
 
   const handleSourceClick = (source: ChatSource) => {
     setSelectedSource(source);
     setSourcePanelOpen(true);
   };
+
+  const totalItems = dashboardMetrics.knowledgeItems.value;
 
   return (
     <div className="flex h-full max-w-screen-2xl mx-auto">
@@ -221,7 +227,9 @@ export default function ChatInterface() {
             </div>
             <div>
               <h1 className="text-[14px] font-semibold text-foreground">Ask SynQ</h1>
-              <p className="text-[11px] text-muted-foreground">Grounded in your company's technical memory</p>
+              <p className="text-[11px] text-muted-foreground">
+                Grounded in your company&apos;s technical memory
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -250,13 +258,14 @@ export default function ChatInterface() {
           <Sparkles size={11} className="text-primary flex-shrink-0" />
           <span>
             SynQ has access to{' '}
-            <span className="text-foreground font-medium">{liveServices.length} services</span>,{' '}
-            <span className="text-foreground font-medium">{liveAdrs.length} ADRs</span>,{' '}
-            <span className="text-foreground font-medium">{liveIncidents.length} incidents</span>
-            {currentProject && (
+            <span className="text-foreground font-medium">{mockServices.length} services</span>,{' '}
+            <span className="text-foreground font-medium">{mockADRs.length} ADRs</span>,{' '}
+            <span className="text-foreground font-medium">{mockIncidents.length} incidents</span>,
+            and <span className="text-foreground font-medium">{totalItems} knowledge items</span>
+            {user && (
               <span>
                 {' '}
-                for <span className="text-foreground font-medium">{currentProject.name}</span>
+                for <span className="text-foreground font-medium">NovaPay</span>
               </span>
             )}
             .
@@ -267,7 +276,12 @@ export default function ChatInterface() {
         {error && (
           <div className="mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-[12px] text-red-400 flex-shrink-0">
             <span className="flex-1">Error: {error}</span>
-            <button onClick={() => setError(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            <button
+              onClick={() => setError(null)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -285,12 +299,24 @@ export default function ChatInterface() {
               </div>
               <div className="chat-ai-bubble rounded-xl px-4 py-3 max-w-2xl">
                 {streamingText ? (
-                  <p className="text-[13px] text-foreground/90 leading-relaxed whitespace-pre-wrap">{streamingText}<span className="inline-block w-0.5 h-3.5 bg-primary ml-0.5 animate-pulse" /></p>
+                  <p className="text-[13px] text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                    {streamingText}
+                    <span className="inline-block w-0.5 h-3.5 bg-primary ml-0.5 animate-pulse" />
+                  </p>
                 ) : (
                   <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+                      style={{ animationDelay: '0ms' }}
+                    />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+                      style={{ animationDelay: '150ms' }}
+                    />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
+                      style={{ animationDelay: '300ms' }}
+                    />
                     <span className="ml-1">Searching knowledge base...</span>
                   </div>
                 )}
@@ -323,13 +349,17 @@ export default function ChatInterface() {
           <ChatInput
             value={inputValue}
             onChange={setInputValue}
-            onSend={(t) => { handleSend(t); setInputValue('') }}
+            onSend={(t) => {
+              handleSend(t);
+              setInputValue('');
+            }}
             onStop={isStreaming ? handleStop : undefined}
             disabled={false}
             streaming={isStreaming}
           />
           <p className="text-[10px] text-muted-foreground/60 text-center mt-2">
-            SynQ answers are grounded in documented company knowledge. Always verify critical decisions with service owners.
+            SynQ answers are grounded in documented company knowledge. Always verify critical
+            decisions with service owners.
           </p>
         </div>
       </div>
@@ -337,16 +367,16 @@ export default function ChatInterface() {
       {/* Source panel */}
       {sourcePanelOpen && (
         <SourcePanel
-          sources={
-            messages.filter(m => m.role === 'assistant' && m.sources).flatMap(m => m.sources ?? [])
-              .filter((s, i, a) => a.findIndex(x => x.id === s.id) === i)
-              .slice(0, 6)
-          }
+          sources={messages
+            .filter((m) => m.role === 'assistant' && m.sources)
+            .flatMap((m) => m.sources ?? [])
+            .filter((s, i, a) => a.findIndex((x) => x.id === s.id) === i)
+            .slice(0, 6)}
           selectedSource={selectedSource}
           onSourceSelect={setSelectedSource}
           onClose={() => setSourcePanelOpen(false)}
         />
       )}
     </div>
-  )
+  );
 }
