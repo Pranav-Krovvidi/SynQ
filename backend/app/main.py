@@ -46,7 +46,7 @@ async def health() -> dict:
 # ---------------------------------------------------------------------------
 from fastapi import APIRouter  # noqa: E402
 
-from app.api.v1 import auth, projects, services, adrs, documents, ingest, chat  # noqa: E402
+from app.api.v1 import auth, catalog, projects, services, adrs, documents, ingest, chat  # noqa: E402
 
 api_v1 = APIRouter(prefix="/api/v1")
 
@@ -58,6 +58,7 @@ async def ping() -> dict:
 
 
 api_v1.include_router(auth.router)
+api_v1.include_router(catalog.router)
 api_v1.include_router(projects.router)
 api_v1.include_router(services.router)
 api_v1.include_router(adrs.router)

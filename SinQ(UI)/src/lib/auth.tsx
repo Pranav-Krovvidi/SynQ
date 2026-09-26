@@ -1,7 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { mockCurrentUser, mockProjects, type Project } from '@/lib/mockData'
+import { apiFetch, apiLogin, apiLogout, type CatalogProject, type MeResponse } from '@/lib/api'
+import type { Project } from '@/lib/mockData'
 
 interface AuthUser {
   id: string
@@ -28,53 +29,114 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 const STORAGE_KEY = 'synq_auth'
 const PROJECT_KEY = 'synq_project'
 
+function toAuthUser(profile: MeResponse): AuthUser {
+  const name = profile.full_name || profile.email
+  return {
+    id: profile.id,
+    name,
+    email: profile.email,
+    role: profile.role as AuthUser['role'],
+    avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+    team: 'Engineering',
+    title: profile.role,
+  }
+}
+
+function toProject(project: CatalogProject): Project {
+  return {
+    id: project.id,
+    name: project.name,
+    description: project.description ?? '',
+    company: project.company_name,
+    services: project.service_count,
+    adrs: project.adr_count,
+    incidents: project.incident_count,
+    members: project.member_count,
+    lastUpdated: new Date(project.updated_at).toLocaleDateString(),
+    color: '#00a98f',
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
 
-  // Rehydrate from localStorage on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) setUser(JSON.parse(stored))
+    let active = true
+    const token = localStorage.getItem('synq_jwt')
+    if (!token) {
+      setUser(null)
+      return () => { active = false }
+    }
 
-      const storedProject = localStorage.getItem(PROJECT_KEY)
-      if (storedProject) {
-        setCurrentProjectState(JSON.parse(storedProject))
-      } else {
-        // Default to first project
-        setCurrentProjectState(mockProjects[0])
+    const refreshProjects = async () => {
+      try {
+        const result = await apiFetch<CatalogProject[]>('/catalog/projects')
+        if (!active) return
+        const liveProjects = result.map(toProject)
+        setProjects(liveProjects)
+        setCurrentProjectState((current) => {
+          const savedId = current?.id ?? (() => {
+            try { return JSON.parse(localStorage.getItem(PROJECT_KEY) ?? 'null')?.id } catch { return null }
+          })()
+          const selected = liveProjects.find((project) => project.id === savedId) ?? liveProjects[0] ?? null
+          if (selected) localStorage.setItem(PROJECT_KEY, JSON.stringify(selected))
+          return selected
+        })
+      } catch {
+        if (active) setProjects([])
       }
-    } catch {
-      // ignore parse errors
+    }
+
+    void apiFetch<MeResponse>('/auth/me')
+      .then((profile) => {
+        if (active) {
+          const authUser = toAuthUser(profile)
+          setUser(authUser)
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser))
+          void refreshProjects()
+        }
+      })
+      .catch(() => {
+        apiLogout()
+        localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(PROJECT_KEY)
+        if (active) setUser(null)
+      })
+
+    const timer = window.setInterval(() => void refreshProjects(), 15000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
     }
   }, [])
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Demo: accept any email that matches the mock user, any password
-    const lower = email.toLowerCase()
-    if (lower === mockCurrentUser.email || lower === 'demo@synq.dev' || lower === 'admin@novapay.com') {
-      const authUser: AuthUser = {
-        id: mockCurrentUser.id,
-        name: mockCurrentUser.name,
-        email: mockCurrentUser.email,
-        role: mockCurrentUser.role,
-        avatar: mockCurrentUser.avatar,
-        team: mockCurrentUser.team,
-        title: mockCurrentUser.title,
-      }
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      await apiLogin(email, password)
+      const profile = await apiFetch<MeResponse>('/auth/me')
+      const authUser = toAuthUser(profile)
       setUser(authUser)
-      setCurrentProjectState(mockProjects[0])
       localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser))
-      localStorage.setItem(PROJECT_KEY, JSON.stringify(mockProjects[0]))
+      const result = await apiFetch<CatalogProject[]>('/catalog/projects')
+      const liveProjects = result.map(toProject)
+      setProjects(liveProjects)
+      const selected = liveProjects[0] ?? null
+      setCurrentProjectState(selected)
+      if (selected) localStorage.setItem(PROJECT_KEY, JSON.stringify(selected))
       return true
+    } catch {
+      apiLogout()
+      return false
     }
-    return false
   }
 
   const logout = () => {
     setUser(null)
+    setProjects([])
     setCurrentProjectState(null)
+    apiLogout()
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(PROJECT_KEY)
   }
@@ -89,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isAuthenticated: !!user,
       currentProject,
-      projects: mockProjects,
+      projects,
       setCurrentProject,
       login,
       logout,

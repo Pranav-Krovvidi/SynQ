@@ -23,6 +23,9 @@ class Project(TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -31,6 +34,9 @@ class Project(TimestampMixin, Base):
     # relationships
     owner: Mapped["User"] = relationship(  # type: ignore[name-defined]
         "User", back_populates="projects"
+    )
+    company: Mapped["Company | None"] = relationship(
+        "Company", back_populates="projects"
     )
     services: Mapped[list["Service"]] = relationship(  # type: ignore[name-defined]
         "Service", back_populates="project", cascade="all, delete-orphan"

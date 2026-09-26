@@ -174,14 +174,12 @@ Current status: **WS-1 (Scaffolding) complete.**
 
 ## Demo Company: NovaPay
 
-The built-in demo dataset features **NovaPay**, a fictional fintech payments platform with:
-- 6 services (Payment, Auth, Fraud Detection, Notification, Reporting, API Gateway)
-- 6 Architecture Decision Records
-- 3 incidents (including a P1 payment outage)
-- 4 compliance and business requirements
-
-Run the seed script after WS-14 is complete:
+The base demo dataset features **NovaPay**, a fictional fintech payments platform with services, ADRs, and reference documents. To create the full multi-company dataset, apply migrations and run both seed scripts:
 ```bash
 cd backend
-python scripts/seed_demo.py
+alembic upgrade head
+python scripts/seed_demo.py --no-embed
+python scripts/seed_company_data.py
 ```
+
+The extended seed adds four companies, eight projects, 32 employee profiles, 39 services, and 16 incident reports. Employee profiles are directory records, not login accounts. The Projects, People, Services, and Incidents views read from the API and refresh every 15 seconds.

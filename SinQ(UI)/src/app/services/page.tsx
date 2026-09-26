@@ -2,9 +2,20 @@
 
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { mockServices, Service, ServiceStatus } from '@/lib/mockData';
+import type { CatalogService } from '@/lib/api';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
 import { Server, Search, AlertTriangle, CheckCircle, AlertCircle, ChevronRight, GitBranch, Zap } from 'lucide-react';
 import Link from 'next/link';
+
+type ServiceStatus = 'operational' | 'degraded' | 'incident';
+type LiveService = CatalogService & {
+  owner: string;
+  team: string;
+  technologies: string[];
+  adrCount: number;
+  incidentCount: number;
+  description: string;
+};
 
 const statusConfig: Record<ServiceStatus, { label: string; color: string; icon: React.ReactNode; dot: string }> = {
   operational: { label: 'Operational', color: 'text-emerald-400', icon: <CheckCircle size={12} />, dot: 'bg-emerald-400' },
@@ -20,7 +31,7 @@ const teamColors: Record<string, string> = {
   'Data Platform': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
 };
 
-function ServiceCard({ service }: { service: Service }) {
+function ServiceCard({ service }: { service: LiveService }) {
   const status = statusConfig[service.status];
   const teamColor = teamColors[service.team] ?? 'bg-muted text-muted-foreground border-border';
 
@@ -72,8 +83,20 @@ export default function ServicesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const { data, loading, error } = useLiveCatalog<CatalogService>('/catalog/services');
+  const mockServices: LiveService[] = data.map((service) => ({
+    ...service,
+    owner: service.project_name,
+    team: service.project_name,
+    technologies: (service.tech_stack ?? '').split(',').map((technology) => technology.trim()).filter(Boolean),
+    adrCount: service.adr_count,
+    incidentCount: service.incident_count,
+    description: service.description ?? '',
+  }));
 
   const teams = Array.from(new Set(mockServices.map((s) => s.team)));
+  const companies = Array.from(new Set(mockServices.map((s) => s.company_name))).sort();
 
   const filtered = mockServices.filter((s) => {
     const matchSearch =
@@ -81,13 +104,14 @@ export default function ServicesPage() {
       s.description.toLowerCase().includes(search.toLowerCase()) ||
       s.owner.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-    const matchTeam = teamFilter === 'all' || s.team === teamFilter;
-    return matchSearch && matchStatus && matchTeam;
+    const matchTeam = teamFilter === 'all' || s.project_name === teamFilter;
+    const matchCompany = companyFilter === 'all' || s.company_name === companyFilter;
+    return matchSearch && matchStatus && matchTeam && matchCompany;
   });
 
   const counts = {
     operational: mockServices.filter((s) => s.status === 'operational').length,
-    degraded: mockServices.filter((s) => s.status === 'degraded').length,
+    degraded: 0,
     incident: mockServices.filter((s) => s.status === 'incident').length,
   };
 
@@ -99,7 +123,7 @@ export default function ServicesPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground mb-1">Services</h1>
             <p className="text-[13px] text-muted-foreground">
-              {mockServices.length} services across {teams.length} teams
+              {mockServices.length} services across {companies.length} companies
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -131,6 +155,14 @@ export default function ServicesPage() {
             />
           </div>
           <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="px-3 py-2 bg-secondary border border-border rounded-md text-[13px] text-foreground focus:outline-none focus:border-primary/50 transition-colors"
+          >
+            <option value="all">All Companies</option>
+            {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+          </select>
+          <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 bg-secondary border border-border rounded-md text-[13px] text-foreground focus:outline-none focus:border-primary/50 transition-colors"
@@ -145,7 +177,7 @@ export default function ServicesPage() {
             onChange={(e) => setTeamFilter(e.target.value)}
             className="px-3 py-2 bg-secondary border border-border rounded-md text-[13px] text-foreground focus:outline-none focus:border-primary/50 transition-colors"
           >
-            <option value="all">All Teams</option>
+            <option value="all">All Projects</option>
             {teams.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
@@ -153,7 +185,11 @@ export default function ServicesPage() {
         </div>
 
         {/* Grid */}
-        {filtered.length === 0 ? (
+        {error ? (
+          <p className="py-12 text-center text-[13px] text-red-400">Unable to load services: {error}</p>
+        ) : loading ? (
+          <p className="py-12 text-center text-[13px] text-muted-foreground">Loading services…</p>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Server size={32} className="text-muted-foreground/30 mb-3" />
             <p className="text-[13px] text-muted-foreground">No services match your filters.</p>
