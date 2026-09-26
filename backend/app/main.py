@@ -4,7 +4,7 @@ SynQ Backend — application entry point.
 Starts a FastAPI application with:
 - CORS configured for the React frontend origin
 - /health liveness probe
-- API v1 router (placeholder, populated by future workstreams)
+- API v1 router with auth, projects, services, ADRs, documents
 """
 
 from fastapi import FastAPI
@@ -41,9 +41,11 @@ async def health() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# API v1 router — feature routers are registered here in later workstreams
+# API v1 — all feature routers registered here
 # ---------------------------------------------------------------------------
 from fastapi import APIRouter  # noqa: E402
+
+from app.api.v1 import auth, projects, services, adrs, documents, ingest, chat  # noqa: E402
 
 api_v1 = APIRouter(prefix="/api/v1")
 
@@ -53,5 +55,13 @@ async def ping() -> dict:
     """Quick check that the v1 router is reachable."""
     return {"message": "pong"}
 
+
+api_v1.include_router(auth.router)
+api_v1.include_router(projects.router)
+api_v1.include_router(services.router)
+api_v1.include_router(adrs.router)
+api_v1.include_router(documents.router)
+api_v1.include_router(ingest.router)
+api_v1.include_router(chat.router)
 
 app.include_router(api_v1)
