@@ -16,6 +16,12 @@ so IBM watsonx.ai is the AI provider and IBM Code Engine is the recommended back
 - Database: PostgreSQL 15 + pgvector extension, hosted on Neon.tech (free tier, serverless)
 - AI: IBM watsonx.ai — `ibm/granite-3-3-8b-instruct` (chat), `ibm/slate-125m-english-rtrvr` (embeddings)
 - Streaming: Server-Sent Events (SSE) for AI chat responses
+
+> **Provider note:** the AI provider was changed from IBM watsonx.ai to
+> Google AI Studio (Gemini) after this plan was written. References to
+> watsonx, Granite and Slate below describe the original design; the
+> implementation uses `gemini-3.6-flash` for chat and
+> `gemini-embedding-001` (768-dim) for embeddings.
 - Containerization: Docker + Docker Compose for local development
 
 **Deployment topology:**

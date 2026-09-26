@@ -31,14 +31,23 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 8
 
     # ------------------------------------------------------------------
-    # watsonx.ai
+    # Google AI Studio (Gemini)
     # ------------------------------------------------------------------
-    watsonx_api_key: str = ""
-    watsonx_project_id: str = ""
-    watsonx_url: str = "https://us-south.ml.cloud.ibm.com"
-    llm_model_id: str = "ibm/granite-3-3-8b-instruct"
-    embedding_model_id: str = "ibm/slate-125m-english-rtrvr"
-    embedding_dimension: int = 384
+    # Free API key: https://aistudio.google.com/apikey
+    google_api_key: str = ""
+
+    # Check which models have a free-tier row for your key at
+    # https://aistudio.google.com/rate-limit — override via LLM_MODEL_ID.
+    llm_model_id: str = "gemini-3.6-flash"
+
+    # gemini-embedding-001 supports task types and Matryoshka truncation.
+    # (gemini-embedding-2-preview does NOT accept task_type.)
+    embedding_model_id: str = "gemini-embedding-001"
+
+    # gemini-embedding-001 emits 3072 dims natively and can be truncated to
+    # any width; Google recommends 3072, 1536 or 768.  This value is the
+    # pgvector column width — changing it requires a new migration.
+    embedding_dimension: int = 768
 
     # ------------------------------------------------------------------
     # CORS

@@ -9,7 +9,10 @@
 
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+// `||` not `??`: docker-compose sets VITE_API_BASE_URL to an empty string to
+// mean "use the Vite proxy", and `??` would keep that empty string,
+// dropping the /api/v1 prefix from every request.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

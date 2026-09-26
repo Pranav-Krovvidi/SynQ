@@ -66,11 +66,16 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: ""   # empty = use Vite proxy (see vite.config.ts)
+      BACKEND_ORIGIN: "http://backend:8000"  # proxy target inside the compose network
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+      # Mount the whole project so Vite can see index.html, vite.config.ts and
+      # tsconfig.json — the dev image only installs dependencies.  The bare
+      # /app/node_modules entry keeps the image's installed modules from being
+      # shadowed by the host mount.
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 

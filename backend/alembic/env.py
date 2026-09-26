@@ -26,10 +26,11 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import all models here so Alembic can auto-detect schema changes.
-# Models are added in WS-2.
-# from app.models import *   # noqa: F401, F403
-target_metadata = None  # replaced with Base.metadata in WS-2
+# Import all models so Alembic can auto-detect schema changes.
+import app.models  # noqa: F401 — registers all ORM models with Base.metadata
+from app.models.base import Base
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

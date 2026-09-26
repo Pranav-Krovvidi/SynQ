@@ -5,8 +5,13 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 import App from './App'
 
-// Carbon Design System global styles
-import '@carbon/react/scss/globals/grid/_index.scss'
+// Carbon Design System styles. The prebuilt stylesheet is the zero-config
+// entry point and includes the grid; the old v10 path
+// '@carbon/react/scss/globals/grid/_index.scss' no longer exists in v11.
+import '@carbon/styles/css/styles.css'
+
+// Project global styles (previously defined but never imported)
+import './index.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
