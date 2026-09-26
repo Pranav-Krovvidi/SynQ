@@ -1,0 +1,30 @@
+version: "3.9"
+
+# =============================================================
+# SynQ — Production Docker Compose Override
+#
+# Used for testing production images locally before pushing.
+# In production, the backend is deployed to IBM Code Engine and
+# the frontend is deployed to Vercel (not via Docker).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# =============================================================
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+      target: production    # uses Red Hat UBI image
+    volumes: []             # no source mounts in production
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+  frontend:
+    build:
+      context: ./frontend
+      target: production
+    volumes: []
+    ports:
+      - "4173:4173"

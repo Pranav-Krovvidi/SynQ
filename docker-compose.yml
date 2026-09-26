@@ -1,0 +1,78 @@
+version: "3.9"
+
+# =============================================================
+# SynQ — Local Development Stack
+#
+# Starts three services:
+#   postgres  — PostgreSQL 15 with pgvector extension
+#   backend   — FastAPI with hot-reload (python:3.11-slim target)
+#   frontend  — Vite dev server with hot-reload (node:20-alpine target)
+#
+# Usage:
+#   docker compose up            # start all services
+#   docker compose up backend    # start only backend + postgres
+#   docker compose logs -f       # tail all logs
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # PostgreSQL 15 + pgvector
+  # -----------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: synq
+      POSTGRES_USER: synq
+      POSTGRES_PASSWORD: synq_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synq -d synq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # FastAPI backend
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      target: development
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://synq:synq_dev@postgres:5432/synq
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -----------------------------------------------------------
+  # React + Vite frontend
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ""   # empty = use Vite proxy (see vite.config.ts)
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

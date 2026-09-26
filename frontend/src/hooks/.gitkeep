@@ -1,0 +1,2 @@
+// src/hooks/.gitkeep
+// Custom React hooks (useChatStream, useAuth, etc.) are added in WS-8 through WS-12.
