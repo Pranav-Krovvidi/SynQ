@@ -1,0 +1,14 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/(app)/people/[id]/page": "app/(app)/people/[id]/page.js",
+  "/(app)/adrs/[id]/page": "app/(app)/adrs/[id]/page.js",
+  "/(app)/dashboard/page": "app/(app)/dashboard/page.js",
+  "/(app)/chat/page": "app/(app)/chat/page.js",
+  "/(app)/adrs/page": "app/(app)/adrs/page.js",
+  "/(app)/people/page": "app/(app)/people/page.js",
+  "/(app)/explorer/page": "app/(app)/explorer/page.js",
+  "/(app)/explorer/services/[id]/page": "app/(app)/explorer/services/[id]/page.js",
+  "/(app)/settings/page": "app/(app)/settings/page.js"
+}

@@ -4,9 +4,21 @@ import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { mockADRs, ADRStatus } from '@/lib/mockData';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
+import { adrFromCatalog } from '@/lib/catalogAdapters';
+import type { CatalogAdr } from '@/lib/api';
 import {
-  GitBranch, User, Clock, Tag, ArrowLeft, CheckCircle2,
-  AlertCircle, FileEdit, XCircle, Server, Sparkles,
+  GitBranch,
+  User,
+  Clock,
+  Tag,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  FileEdit,
+  XCircle,
+  Server,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -51,7 +63,9 @@ export default function ADRDetailPage() {
   const router = useRouter();
   const id = typeof params.id === 'string' ? params.id : '';
 
-  const adr = mockADRs.find((a) => a.id === id);
+  const { data: liveADRs } = useLiveCatalog<CatalogAdr>('/catalog/adrs');
+  const liveMatch = liveADRs.find((a) => a.id === id);
+  const adr = liveMatch ? adrFromCatalog(liveMatch) : mockADRs.find((a) => a.id === id);
 
   if (!adr) {
     return (
@@ -66,8 +80,13 @@ export default function ADRDetailPage() {
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <GitBranch size={32} className="text-muted-foreground/30 mb-3" />
             <p className="text-[14px] font-medium text-foreground mb-1">ADR not found</p>
-            <p className="text-[13px] text-muted-foreground">No decision record with id &ldquo;{id}&rdquo; exists.</p>
-            <Link href="/architecture-decisions" className="mt-4 text-[13px] text-primary hover:underline">
+            <p className="text-[13px] text-muted-foreground">
+              No decision record with id &ldquo;{id}&rdquo; exists.
+            </p>
+            <Link
+              href="/architecture-decisions"
+              className="mt-4 text-[13px] text-primary hover:underline"
+            >
               View all decisions
             </Link>
           </div>
@@ -95,26 +114,38 @@ export default function ADRDetailPage() {
             <span className="text-[11px] font-mono text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
               {adr.id.toUpperCase()}
             </span>
-            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border ${status.color}`}>
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border ${status.color}`}
+            >
               {status.icon} {status.label}
             </span>
           </div>
           <h1 className="text-xl font-bold text-foreground leading-snug mb-3">{adr.title}</h1>
           <div className="flex items-center gap-4 text-[12px] text-muted-foreground">
-            <span className="flex items-center gap-1"><User size={11} /> {adr.author}</span>
-            <span className="flex items-center gap-1"><Clock size={11} /> {adr.date}</span>
+            <span className="flex items-center gap-1">
+              <User size={11} /> {adr.author}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock size={11} /> {adr.date}
+            </span>
           </div>
         </div>
 
         {/* Tags + Services */}
         <div className="flex flex-wrap gap-2 mb-6">
           {adr.tags.map((tag) => (
-            <span key={tag} className="inline-flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
+            >
               <Tag size={8} /> {tag}
             </span>
           ))}
           {adr.services.map((s) => (
-            <span key={s} className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+            <span
+              key={s}
+              className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20"
+            >
               <Server size={8} /> {s}
             </span>
           ))}
@@ -153,7 +184,8 @@ export default function ADRDetailPage() {
               Want deeper context on this decision?
             </p>
             <p className="text-[12px] text-muted-foreground mb-3">
-              Ask SynQ AI to explain trade-offs, related incidents, or how this affects services you&apos;re working on.
+              Ask SynQ AI to explain trade-offs, related incidents, or how this affects services
+              you&apos;re working on.
             </p>
             <Link
               href={`/ask-syn-q-ai-chat?q=${encodeURIComponent(`Explain the context and trade-offs behind ${adr.id.toUpperCase()}: ${adr.title}`)}`}

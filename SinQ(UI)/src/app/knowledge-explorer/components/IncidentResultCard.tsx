@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { AlertTriangle, Clock, User, ArrowRight } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import type { Incident } from '@/lib/mockData';
@@ -17,7 +18,9 @@ function highlight(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-red-500/20 text-red-300 rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="bg-red-500/20 text-red-300 rounded-sm px-0.5">
+        {text.slice(idx, idx + query.length)}
+      </mark>
       {text.slice(idx + query.length)}
     </>
   );
@@ -25,9 +28,12 @@ function highlight(text: string, query: string): React.ReactNode {
 
 export default function IncidentResultCard({ incident, query }: Props) {
   return (
-    <div className={`synq-card p-4 card-hover cursor-pointer group ${
-      incident.status !== 'resolved' ? 'border-red-500/20 bg-red-500/3' : ''
-    }`}>
+    <Link
+      href="/incidents"
+      className={`synq-card p-4 card-hover cursor-pointer group block ${
+        incident.status !== 'resolved' ? 'border-red-500/20 bg-red-500/3' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-start gap-2 min-w-0">
           <div className="w-6 h-6 rounded-md bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -65,9 +71,12 @@ export default function IncidentResultCard({ incident, query }: Props) {
             <User size={10} />
             <span>{incident.owner.split(' ')[0]}</span>
           </div>
-          <ArrowRight size={12} className="text-muted-foreground group-hover:text-red-400 transition-colors" />
+          <ArrowRight
+            size={12}
+            className="text-muted-foreground group-hover:text-red-400 transition-colors"
+          />
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

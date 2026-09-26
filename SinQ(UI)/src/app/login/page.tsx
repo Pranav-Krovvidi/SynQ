@@ -9,8 +9,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
 
-  const [email, setEmail] = useState('admin@novapay.com');
-  const [password, setPassword] = useState('novapay2026');
+  const [email, setEmail] = useState('admin@novapay.io');
+  const [password, setPassword] = useState('novapay2024');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,12 +51,16 @@ export default function LoginPage() {
             <Sparkles size={22} className="text-primary" />
           </div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">SynQ</h1>
-          <p className="text-[13px] text-muted-foreground mt-1">Organisational memory for engineering teams</p>
+          <p className="text-[13px] text-muted-foreground mt-1">
+            Organisational memory for engineering teams
+          </p>
         </div>
 
         {/* Card */}
         <div className="bg-secondary border border-border rounded-xl p-6 shadow-sm">
-          <h2 className="text-[15px] font-semibold text-foreground mb-5">Sign in to your workspace</h2>
+          <h2 className="text-[15px] font-semibold text-foreground mb-5">
+            Sign in to your workspace
+          </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -115,7 +119,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-[11px] text-muted-foreground mt-4">
-            Demo account: <span className="font-mono text-primary">admin@novapay.com</span>
+            Demo account: <span className="font-mono text-primary">admin@novapay.io</span>
           </p>
         </div>
       </div>

@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar-w: 240px;
+}
+
+/* ── Scrollbar ── */
+* { box-sizing: border-box; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+/* ── Toggle fix — keep thumb inside track ── */
+.toggle-root {
+  @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full
+         border-2 border-transparent transition-colors duration-200 ease-in-out
+         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+         focus-visible:outline-brand-600;
+}
+.toggle-root[data-state="checked"]   { @apply bg-brand-600; }
+.toggle-root[data-state="unchecked"] { @apply bg-gray-200; }
+
+.toggle-thumb {
+  @apply pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg
+         ring-0 transition-transform duration-200 ease-in-out;
+}
+.toggle-root[data-state="checked"]   .toggle-thumb { @apply translate-x-5; }
+.toggle-root[data-state="unchecked"] .toggle-thumb { @apply translate-x-0; }
