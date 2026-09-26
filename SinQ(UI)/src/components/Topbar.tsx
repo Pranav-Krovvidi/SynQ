@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search, Bell, Sparkles, ChevronRight, Command } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useProjectCatalog } from '@/lib/useLiveCatalog';
+import type { CatalogIncident } from '@/lib/api';
 
 const breadcrumbMap: Record<string, { label: string; parent?: string }> = {
   '/': { label: 'Dashboard' },
@@ -26,7 +28,10 @@ function getBreadcrumb(pathname: string) {
   if (breadcrumbMap[pathname]) return breadcrumbMap[pathname];
   // Dynamic ADR detail: /architecture-decisions/:id
   if (pathname.startsWith('/architecture-decisions/')) {
-    return { label: pathname.split('/').pop()?.toUpperCase() ?? 'ADR', parent: 'Architecture Decisions' };
+    return {
+      label: pathname.split('/').pop()?.toUpperCase() ?? 'ADR',
+      parent: 'Architecture Decisions',
+    };
   }
   return { label: 'SynQ' };
 }
@@ -34,11 +39,21 @@ function getBreadcrumb(pathname: string) {
 export default function Topbar() {
   const pathname = usePathname();
   const [searchFocused, setSearchFocused] = useState(false);
-  const { user } = useAuth();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { user, currentProject } = useAuth();
   const crumb = getBreadcrumb(pathname);
 
+  // The badge reflects real work: incidents in this project that are still open.
+  const { data: incidents } = useProjectCatalog<CatalogIncident>('/catalog/incidents');
+  const alerts = incidents.filter((incident) => incident.status !== 'resolved');
+
   const initials = user
-    ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
     : 'SQ';
 
   return (
@@ -57,7 +72,9 @@ export default function Topbar() {
       </nav>
 
       {/* Search */}
-      <div className={`relative flex items-center transition-all duration-200 ${searchFocused ? 'w-72' : 'w-56'}`}>
+      <div
+        className={`relative flex items-center transition-all duration-200 ${searchFocused ? 'w-72' : 'w-56'}`}
+      >
         <Search size={14} className="absolute left-3 text-muted-foreground pointer-events-none" />
         <input
           type="text"
@@ -81,11 +98,62 @@ export default function Topbar() {
         Ask SynQ
       </Link>
 
-      {/* Notifications */}
-      <button className="relative w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150">
-        <Bell size={16} />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-400" />
-      </button>
+      {/* Notifications — unresolved incidents in the selected project */}
+      <div className="relative">
+        <button
+          type="button"
+          aria-label={`Notifications${alerts.length ? ` (${alerts.length} unread)` : ''}`}
+          aria-expanded={notifOpen}
+          onClick={() => setNotifOpen((open) => !open)}
+          className="relative w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150"
+        >
+          <Bell size={16} />
+          {alerts.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-400" />
+          )}
+        </button>
+        {notifOpen && (
+          <>
+            {/* click-away layer */}
+            <button
+              type="button"
+              aria-hidden
+              tabIndex={-1}
+              onClick={() => setNotifOpen(false)}
+              className="fixed inset-0 z-40 cursor-default"
+            />
+            <div className="absolute right-0 top-full mt-1.5 w-72 bg-secondary border border-border rounded-md shadow-lg py-1 z-50">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <p className="text-[12px] font-medium text-foreground">Notifications</p>
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {alerts.length}
+                </span>
+              </div>
+              {alerts.length === 0 ? (
+                <p className="px-3 py-4 text-[12px] text-muted-foreground">
+                  Nothing needs attention in {currentProject?.name ?? 'this workspace'}.
+                </p>
+              ) : (
+                alerts.slice(0, 6).map((incident) => (
+                  <Link
+                    key={incident.id}
+                    href="/incidents"
+                    onClick={() => setNotifOpen(false)}
+                    className="block px-3 py-2 hover:bg-muted transition-colors border-b border-border/50 last:border-0"
+                  >
+                    <p className="text-[12px] text-foreground leading-snug line-clamp-1">
+                      {incident.id}: {incident.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {incident.severity} · {incident.status} · {incident.service_name}
+                    </p>
+                  </Link>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* User avatar */}
       <div className="group relative">
@@ -98,7 +166,10 @@ export default function Topbar() {
               <p className="text-[12px] font-medium text-foreground">{user.name}</p>
               <p className="text-[11px] text-muted-foreground">{user.email}</p>
             </div>
-            <Link href="/settings" className="block px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <Link
+              href="/settings"
+              className="block px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
               Settings
             </Link>
           </div>

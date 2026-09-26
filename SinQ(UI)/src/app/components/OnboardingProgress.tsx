@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { CheckCircle2, Circle, Lock, ArrowRight } from 'lucide-react';
 import { onboardingSteps } from '@/lib/mockData';
 
@@ -18,7 +19,10 @@ export default function OnboardingProgress() {
           <p className="text-[11px] text-muted-foreground mt-0.5">Backend Engineering — Payments</p>
         </div>
         <div className="text-right flex-shrink-0">
-          <span className="text-[26px] font-bold tabular-nums leading-none" style={{ color: 'var(--color-primary)' }}>
+          <span
+            className="text-[26px] font-bold tabular-nums leading-none"
+            style={{ color: 'var(--color-primary)' }}
+          >
             {PROGRESS}%
           </span>
           <p className="text-[10px] text-muted-foreground mt-0.5">complete</p>
@@ -36,7 +40,7 @@ export default function OnboardingProgress() {
       {/* Steps */}
       <div className="space-y-0.5 flex-1 overflow-hidden">
         {onboardingSteps.slice(0, 8).map((step) => {
-          const isCurrent = (step as any).current;
+          const isCurrent = (step as { current?: boolean }).current;
           return (
             <div
               key={step.id}
@@ -44,9 +48,10 @@ export default function OnboardingProgress() {
                 isCurrent
                   ? 'bg-accent/8 border border-accent/20'
                   : step.completed
-                  ? 'opacity-55'
-                  : step.locked
-                  ? 'opacity-25' :'hover:bg-muted/50 cursor-pointer'
+                    ? 'opacity-55'
+                    : step.locked
+                      ? 'opacity-25'
+                      : 'hover:bg-muted/50 cursor-pointer'
               }`}
             >
               {step.completed ? (
@@ -58,9 +63,15 @@ export default function OnboardingProgress() {
               ) : (
                 <Circle size={13} className="text-muted-foreground/40 flex-shrink-0" />
               )}
-              <span className={`text-[11.5px] flex-1 leading-snug ${
-                isCurrent ? 'text-foreground font-medium' : step.completed ? 'text-foreground/70' : 'text-foreground/80'
-              }`}>
+              <span
+                className={`text-[11.5px] flex-1 leading-snug ${
+                  isCurrent
+                    ? 'text-foreground font-medium'
+                    : step.completed
+                      ? 'text-foreground/70'
+                      : 'text-foreground/80'
+                }`}
+              >
                 {step.title}
               </span>
               {isCurrent && (
@@ -76,11 +87,16 @@ export default function OnboardingProgress() {
       {/* Footer */}
       <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
         <p className="text-[11px] text-muted-foreground">
-          <span className="text-foreground font-medium">{COMPLETED}</span> of <span className="text-foreground font-medium">{TOTAL}</span> steps · <span className="text-primary font-medium">{TOTAL - COMPLETED} remaining</span>
+          <span className="text-foreground font-medium">{COMPLETED}</span> of{' '}
+          <span className="text-foreground font-medium">{TOTAL}</span> steps ·{' '}
+          <span className="text-primary font-medium">{TOTAL - COMPLETED} remaining</span>
         </p>
-        <button className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
+        <Link
+          href="/onboarding"
+          className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+        >
           Continue <ArrowRight size={10} />
-        </button>
+        </Link>
       </div>
     </div>
   );

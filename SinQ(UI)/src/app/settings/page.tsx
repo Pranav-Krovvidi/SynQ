@@ -167,7 +167,14 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-4">Security</h2>
                 <SettingRow label="Password" description="Last changed 90 days ago">
-                  <button className="text-[12px] text-primary hover:underline">Change</button>
+                  <button
+                    type="button"
+                    disabled
+                    title="Password changes are not available yet — the API has no endpoint for this."
+                    className="text-[12px] text-muted-foreground/60 cursor-not-allowed"
+                  >
+                    Change
+                  </button>
                 </SettingRow>
                 <SettingRow
                   label="Two-factor authentication"
@@ -176,7 +183,12 @@ export default function SettingsPage() {
                   <Toggle defaultOn={false} />
                 </SettingRow>
                 <SettingRow label="Active sessions" description="1 active session (this browser)">
-                  <button className="text-[12px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled
+                    title="Session management is not available yet — the API does not expose sessions."
+                    className="text-[12px] text-muted-foreground/60 cursor-not-allowed flex items-center gap-1"
+                  >
                     View <ChevronRight size={11} />
                   </button>
                 </SettingRow>

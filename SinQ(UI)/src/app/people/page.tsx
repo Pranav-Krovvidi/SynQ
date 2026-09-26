@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import type { CatalogEmployee } from '@/lib/api';
 import { useLiveCatalog } from '@/lib/useLiveCatalog';
+import { useAuth } from '@/lib/auth';
 import { Users, Search, Mail, Circle } from 'lucide-react';
 
 const teamColors: Record<string, string> = {
@@ -93,7 +94,16 @@ function PersonCard({ person, index }: { person: CatalogEmployee; index: number 
 export default function PeoplePage() {
   const [search, setSearch] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
+  // People belong to a company, not a project, so the directory follows the
+  // company behind the selected project. Still overridable from the dropdown.
+  const { currentProject } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('all');
+  const [pinnedProject, setPinnedProject] = useState<string | null>(null);
+  const projectCompany = currentProject?.company ?? null;
+  if (currentProject && pinnedProject !== currentProject.id) {
+    setPinnedProject(currentProject.id);
+    setCompanyFilter(projectCompany ?? 'all');
+  }
   const { data: people, loading, error } = useLiveCatalog<CatalogEmployee>('/catalog/employees');
 
   const teams = Array.from(new Set(people.map((person) => person.team))).sort();

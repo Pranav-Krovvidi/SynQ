@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Server, ArrowRight, Clock, User, GitBranch, Layers } from 'lucide-react';
 import { continueCards } from '@/lib/mockData';
 
@@ -21,9 +22,12 @@ export default function ContinueCards() {
     <div className="synq-card p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-foreground">Continue where you left off</h2>
-        <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
+        <Link
+          href="/knowledge-explorer"
+          className="text-[11px] text-muted-foreground hover:text-primary transition-colors"
+        >
           View history
-        </button>
+        </Link>
       </div>
       <div className="space-y-2.5">
         {continueCards.map((card) => (
@@ -39,7 +43,10 @@ export default function ContinueCards() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[13px] font-semibold text-foreground truncate">{card.title}</p>
-                  <ArrowRight size={13} className="text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                  <ArrowRight
+                    size={13}
+                    className="text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0"
+                  />
                 </div>
                 <p className="text-[11px] text-muted-foreground truncate mt-0.5">{card.subtitle}</p>
               </div>
@@ -66,7 +73,9 @@ export default function ContinueCards() {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] text-muted-foreground">Knowledge completeness</span>
-                  <span className={`text-[11px] font-semibold tabular-nums ${completenessColor(card.completeness)}`}>
+                  <span
+                    className={`text-[11px] font-semibold tabular-nums ${completenessColor(card.completeness)}`}
+                  >
                     {card.completeness}%
                   </span>
                 </div>
