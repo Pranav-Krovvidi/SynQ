@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState('admin@novapay.com');
-  const [password, setPassword] = useState('demo1234');
+  const [password, setPassword] = useState('novapay2026');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +29,7 @@ export default function LoginPage() {
       if (ok) {
         router.replace('/');
       } else {
-        setError('Invalid credentials. Use admin@novapay.com with any password for the demo.');
+        setError('Sign-in failed. Check your email and password, then try again.');
       }
     } finally {
       setLoading(false);
@@ -115,7 +115,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-[11px] text-muted-foreground mt-4">
-            Demo: <span className="font-mono text-primary">admin@novapay.com</span> · any password
+            Demo account: <span className="font-mono text-primary">admin@novapay.com</span>
           </p>
         </div>
       </div>

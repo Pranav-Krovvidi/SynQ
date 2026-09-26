@@ -48,14 +48,81 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 export interface TokenResponse { access_token: string; token_type: 'bearer' }
 export interface MeResponse { id: string; email: string; full_name: string; role: string }
 
+export interface CatalogCompany {
+  id: string
+  name: string
+  industry: string
+  description: string
+  project_count: number
+  employee_count: number
+}
+
+export interface CatalogProject {
+  id: string
+  name: string
+  description: string | null
+  company_id: string | null
+  company_name: string
+  company_industry: string
+  owner_id: string
+  service_count: number
+  adr_count: number
+  incident_count: number
+  member_count: number
+  updated_at: string
+}
+
+export interface CatalogEmployee {
+  id: string
+  company_id: string
+  company_name: string
+  full_name: string
+  email: string
+  job_title: string
+  team: string
+  expertise: string[]
+  is_on_call: boolean
+}
+
+export interface CatalogService {
+  id: string
+  name: string
+  description: string | null
+  tech_stack: string | null
+  tags: string[]
+  project_id: string
+  project_name: string
+  company_name: string
+  adr_count: number
+  incident_count: number
+  status: 'operational' | 'incident'
+}
+
+export interface CatalogIncident {
+  id: string
+  title: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  status: 'open' | 'investigating' | 'mitigating' | 'resolved'
+  project_id: string
+  project_name: string
+  company_name: string
+  service_name: string
+  owner_name: string
+  owner_email: string
+  started_at: string
+  resolved_at: string | null
+  summary: string
+  root_cause: string
+  resolution: string
+}
+
 export async function apiLogin(email: string, password: string): Promise<TokenResponse> {
-  const form = new URLSearchParams({ username: email, password })
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
   })
-  if (!res.ok) throw new Error('Invalid credentials')
+  if (!res.ok) throw new Error('Invalid email or password')
   const data = await res.json() as TokenResponse
   if (typeof window !== 'undefined') localStorage.setItem('synq_jwt', data.access_token)
   return data

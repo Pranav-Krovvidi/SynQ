@@ -1,9 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import AppLayout from '@/components/AppLayout'
-import { mockProjects, Project } from '@/lib/mockData'
+import type { CatalogProject } from '@/lib/api'
+import type { Project } from '@/lib/mockData'
 import { useAuth } from '@/lib/auth'
+import { useLiveCatalog } from '@/lib/useLiveCatalog'
 import { FolderKanban, Server, GitBranch, AlertTriangle, Users, Check } from 'lucide-react'
 
 function ProjectCard({ project }: { project: Project }) {
@@ -69,21 +71,53 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export default function ProjectsPage() {
+  const [companyFilter, setCompanyFilter] = useState('all')
+  const { data, loading, error } = useLiveCatalog<CatalogProject>('/catalog/projects')
+  const projects: Project[] = data.map((project) => ({
+    id: project.id,
+    name: project.name,
+    description: project.description ?? '',
+    company: project.company_name,
+    services: project.service_count,
+    adrs: project.adr_count,
+    incidents: project.incident_count,
+    members: project.member_count,
+    lastUpdated: new Date(project.updated_at).toLocaleDateString(),
+    color: '#00a98f',
+  }))
+  const companies = Array.from(new Set(projects.map((project) => project.company))).sort()
+  const filteredProjects = companyFilter === 'all'
+    ? projects
+    : projects.filter((project) => project.company === companyFilter)
+
   return (
     <AppLayout>
       <div className="p-6 max-w-5xl mx-auto">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-foreground mb-1">Projects</h1>
           <p className="text-[13px] text-muted-foreground">
-            {mockProjects.length} projects · Switch context to view knowledge scoped to each project
+            {projects.length} projects across {companies.length} companies · Switch context to view knowledge scoped to each project
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {mockProjects.map((project) => (
+        <div className="mb-5 max-w-xs">
+          <select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} className="w-full px-3 py-2 bg-secondary border border-border rounded-md text-[13px] text-foreground">
+            <option value="all">All companies</option>
+            {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+          </select>
+        </div>
+
+        {error ? (
+          <p className="py-12 text-center text-[13px] text-red-400">Unable to load projects: {error}</p>
+        ) : loading ? (
+          <p className="py-12 text-center text-[13px] text-muted-foreground">Loading projects…</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredProjects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
-        </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   )
