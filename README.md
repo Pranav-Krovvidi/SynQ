@@ -180,6 +180,9 @@ cd backend
 alembic upgrade head
 python scripts/seed_demo.py --no-embed
 python scripts/seed_company_data.py
+python scripts/index_project_knowledge.py
 ```
 
 The extended seed adds four companies, eight projects, 32 employee profiles, 39 services, and 16 incident reports. Employee profiles are directory records, not login accounts. The Projects, People, Services, and Incidents views read from the API and refresh every 15 seconds.
+
+The final indexing step creates project-scoped vector chunks for grounded Ask SynQ answers and requires a valid `GOOGLE_API_KEY` and supported `LLM_MODEL_ID` in the root `.env`.

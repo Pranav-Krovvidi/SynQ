@@ -18,7 +18,7 @@ from app.api.deps import CurrentUser
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserCreate, UserOut
+from app.schemas.auth import LoginRequest, PasswordChangeRequest, TokenResponse, UserCreate, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -92,3 +92,25 @@ async def login(
 async def me(current_user: CurrentUser) -> User:
     """Return the profile of the currently authenticated user."""
     return current_user
+
+
+@router.post("/change-password")
+async def change_password(
+    body: PasswordChangeRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    """Change the authenticated user's password after verifying the current one."""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    if len(body.new_password) < 12:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="New password must be at least 12 characters",
+        )
+    current_user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+    return {"status": "password_changed"}

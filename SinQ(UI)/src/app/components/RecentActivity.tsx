@@ -1,5 +1,8 @@
 import React from 'react';
-import { GitBranch, AlertTriangle, FileText, Lightbulb, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { GitBranch, AlertTriangle, FileText, ArrowRight } from 'lucide-react';
+import type { CatalogAdr, CatalogDocument, CatalogIncident } from '@/lib/api';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
 
 interface RecentItem {
   id: string;
@@ -7,6 +10,7 @@ interface RecentItem {
   meta: string;
   time: string;
   badge?: string;
+  href: string;
 }
 
 interface RecentSection {
@@ -17,47 +21,9 @@ interface RecentSection {
   items: RecentItem[];
 }
 
-const recentSections: RecentSection[] = [
-  {
-    label: 'Architecture Decisions',
-    icon: <GitBranch size={11} />,
-    color: 'text-accent',
-    bgColor: 'bg-accent/10',
-    items: [
-      { id: 'adr-1', title: 'ADR-055: Standardize on mTLS for service-to-service auth', meta: 'James Wu · Platform Security', time: '2h ago', badge: 'Draft' },
-      { id: 'adr-2', title: 'ADR-051: Migrate Order Service from MongoDB to PostgreSQL', meta: 'Priya Nair · Commerce Platform', time: '16h ago', badge: 'Proposed' },
-    ],
-  },
-  {
-    label: 'Incidents',
-    icon: <AlertTriangle size={11} />,
-    color: 'text-red-400',
-    bgColor: 'bg-red-500/10',
-    items: [
-      { id: 'inc-1', title: 'INC-134: Analytics Pipeline Kafka rebalance storm', meta: 'Yuki Tanaka · Investigating', time: '2h 30m ago', badge: 'Open' },
-      { id: 'inc-2', title: 'INC-131: Auth Gateway Memory Leak resolved', meta: 'James Wu · Auth Gateway', time: '24d ago', badge: 'Resolved' },
-    ],
-  },
-  {
-    label: 'Documentation Updates',
-    icon: <FileText size={11} />,
-    color: 'text-amber-400',
-    bgColor: 'bg-amber-500/10',
-    items: [
-      { id: 'doc-1', title: 'Payments Engineering Runbook — on-call procedures updated', meta: 'Alex Morgan · Payments Engineering', time: '3d ago' },
-      { id: 'doc-2', title: 'Zero-Trust Network Architecture Spec — cert-manager section added', meta: 'James Wu · Platform Security', time: '1w ago' },
-    ],
-  },
-  {
-    label: 'Lessons Learned',
-    icon: <Lightbulb size={11} />,
-    color: 'text-yellow-400',
-    bgColor: 'bg-yellow-500/10',
-    items: [
-      { id: 'll-1', title: 'ADR-042 postmortem: Kafka decoupling prevented INC-127 from being worse', meta: 'Alex Morgan · Payments', time: '43d ago' },
-    ],
-  },
-];
+function recentDate(value: string) {
+  return new Date(value).toLocaleDateString();
+}
 
 const badgeColor: Record<string, string> = {
   Draft: 'bg-muted text-muted-foreground',
@@ -67,13 +33,31 @@ const badgeColor: Record<string, string> = {
 };
 
 export default function RecentActivity() {
+  const { data: adrs } = useLiveCatalog<CatalogAdr>('/catalog/adrs');
+  const { data: incidents } = useLiveCatalog<CatalogIncident>('/catalog/incidents');
+  const { data: documents } = useLiveCatalog<CatalogDocument>('/catalog/documents');
+  const recentSections: RecentSection[] = [
+    {
+      label: 'Architecture Decisions', icon: <GitBranch size={11} />, color: 'text-accent', bgColor: 'bg-accent/10',
+      items: adrs.slice(0, 2).map((adr) => ({ id: adr.id, title: adr.title, meta: `${adr.company_name} · ${adr.status}`, time: recentDate(adr.updated_at ?? adr.created_at ?? ''), badge: adr.status, href: `/architecture-decisions?q=${encodeURIComponent(adr.title)}` })),
+    },
+    {
+      label: 'Incidents', icon: <AlertTriangle size={11} />, color: 'text-red-400', bgColor: 'bg-red-500/10',
+      items: incidents.slice(0, 2).map((incident) => ({ id: incident.id, title: incident.title, meta: `${incident.owner_name} · ${incident.status}`, time: recentDate(incident.started_at), badge: incident.status === 'resolved' ? 'Resolved' : 'Open', href: `/incidents?incident=${encodeURIComponent(incident.id)}` })),
+    },
+    {
+      label: 'Documents', icon: <FileText size={11} />, color: 'text-amber-400', bgColor: 'bg-amber-500/10',
+      items: documents.slice(0, 2).map((document) => ({ id: document.id, title: document.filename, meta: `${document.company_name} · ${document.project_name}`, time: recentDate(document.updated_at), href: `/knowledge-explorer?q=${encodeURIComponent(document.filename)}` })),
+    },
+  ];
+
   return (
     <div className="synq-card p-4 flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-foreground">Recent Knowledge</h2>
-        <button className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+        <Link href="/knowledge-explorer" className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
           View all <ArrowRight size={10} />
-        </button>
+        </Link>
       </div>
       <div className="space-y-3 flex-1">
         {recentSections.map((section) => (
@@ -88,8 +72,9 @@ export default function RecentActivity() {
             </div>
             <div className="space-y-1 pl-1">
               {section.items.map((item) => (
-                <div
+                <Link
                   key={item.id}
+                  href={item.href}
                   className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors cursor-pointer group"
                 >
                   <div className="flex-1 min-w-0">
@@ -107,7 +92,7 @@ export default function RecentActivity() {
                       {item.badge}
                     </span>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           </div>

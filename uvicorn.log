@@ -4,3 +4,6 @@ INFO:     127.0.0.1:57513 - "GET /favicon.ico HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:57513 - "GET / HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:57513 - "GET / HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:58138 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50250 - "GET /api/v1/catalog/projects HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65012 - "GET /api/v1/catalog/projects HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52309 - "GET /api/v1/catalog/projects HTTP/1.1" 404 Not Found

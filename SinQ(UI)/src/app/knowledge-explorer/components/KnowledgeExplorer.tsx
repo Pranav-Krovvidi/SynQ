@@ -1,13 +1,25 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, X, Compass } from 'lucide-react';
 import FilterPanel from './FilterPanel';
 import ResultsSection from './ResultsSection';
+import { filterOptions, type Project, type KnowledgeType } from '@/lib/mockData';
+import type {
+  CatalogAdr,
+  CatalogDocument,
+  CatalogEmployee,
+  CatalogIncident,
+  CatalogProject,
+  CatalogService,
+} from '@/lib/api';
 import {
-  mockServices, mockADRs, mockIncidents, mockPeople,
-  explorerDocuments, filterOptions, mockProjects,
-} from '@/lib/mockData';
+  adrFromCatalog,
+  incidentFromCatalog,
+  personFromCatalog,
+  serviceFromCatalog,
+} from '@/lib/catalogAdapters';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
 
 export interface ActiveFilters {
   types: string[];
@@ -45,8 +57,8 @@ function afterCutoff(dateStr: string, cutoff: Date | null): boolean {
 }
 
 // ── Project name → id resolution ─────────────────────────────────────────────
-function projectIdForName(name: string): string | null {
-  const p = mockProjects.find((p) => p.name === name);
+function projectIdForName(name: string, projects: Project[]): string | null {
+  const p = projects.find((project) => project.name === name);
   return p ? p.id : null;
 }
 
@@ -56,12 +68,60 @@ export default function KnowledgeExplorer() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(true);
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
+  const { data: serviceRows } = useLiveCatalog<CatalogService>('/catalog/services');
+  const { data: adrRows } = useLiveCatalog<CatalogAdr>('/catalog/adrs');
+  const { data: incidentRows } = useLiveCatalog<CatalogIncident>('/catalog/incidents');
+  const { data: employeeRows } = useLiveCatalog<CatalogEmployee>('/catalog/employees');
+  const { data: projectRows } = useLiveCatalog<CatalogProject>('/catalog/projects');
+  const { data: documentRows } = useLiveCatalog<CatalogDocument>('/catalog/documents');
+
+  const services = serviceRows.map(serviceFromCatalog);
+  const adrs = adrRows.map(adrFromCatalog);
+  const incidents = incidentRows.map(incidentFromCatalog);
+  const people = employeeRows.map((person) => personFromCatalog(person, adrRows, serviceRows));
+  const projects: Project[] = projectRows.map((project) => ({
+    id: project.id,
+    name: project.name,
+    description: project.description ?? '',
+    company: project.company_name,
+    services: project.service_count,
+    adrs: project.adr_count,
+    incidents: project.incident_count,
+    members: project.member_count,
+    lastUpdated: new Date(project.updated_at).toLocaleDateString(),
+    color: '#00a98f',
+  }));
+  const documents = documentRows.map((document) => ({
+    id: document.id,
+    title: document.filename.replace(/\.[^.]+$/, ''),
+    type: 'document' as KnowledgeType,
+    team: document.company_name,
+    owner: document.company_name,
+    tags: [document.project_name],
+    updatedAt: document.updated_at.slice(0, 10),
+    summary: `Project knowledge document for ${document.project_name}`,
+    projectId: document.project_id,
+  }));
+  const liveFilterOptions = {
+    types: filterOptions.types,
+    teams: Array.from(new Set([...services.map((service) => service.team), ...people.map((person) => person.team)])).sort(),
+    technologies: Array.from(new Set(services.flatMap((service) => service.technologies))).sort(),
+    owners: Array.from(new Set([...services.map((service) => service.owner), ...adrs.map((adr) => adr.author), ...incidents.map((incident) => incident.owner)])).sort(),
+    dateRanges: filterOptions.dateRanges,
+    projects: projects.map((project) => project.name).sort(),
+  };
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search).get('q');
+    if (query) setQuery(query);
+  }, []);
+
   const cutoff = useMemo(() => cutoffDate(filters.dateRange), [filters.dateRange]);
-  const projectId = useMemo(() => (filters.project ? projectIdForName(filters.project) : null), [filters.project]);
+  const projectId = useMemo(() => (filters.project ? projectIdForName(filters.project, projects) : null), [filters.project, projects]);
 
   const filteredServices = useMemo(() => {
     if (filters.types.length > 0 && !filters.types.includes('Service')) return [];
-    return mockServices.filter((s) => {
+    return services.filter((s) => {
       if (projectId && s.projectId !== projectId) return false;
       if (!afterCutoff(s.lastUpdated, cutoff)) return false;
       const q = query.toLowerCase();
@@ -75,11 +135,11 @@ export default function KnowledgeExplorer() {
       const matchesOwner = filters.owners.length === 0 || filters.owners.includes(s.owner);
       return matchesQuery && matchesTeam && matchesTech && matchesOwner;
     });
-  }, [query, filters, cutoff, projectId]);
+  }, [query, filters, cutoff, projectId, services]);
 
   const filteredADRs = useMemo(() => {
     if (filters.types.length > 0 && !filters.types.includes('ADR')) return [];
-    return mockADRs.filter((a) => {
+    return adrs.filter((a) => {
       if (projectId && a.projectId !== projectId) return false;
       if (!afterCutoff(a.date, cutoff)) return false;
       const q = query.toLowerCase();
@@ -95,11 +155,11 @@ export default function KnowledgeExplorer() {
       // ADRs don't have a team field — team filter skipped for ADRs
       return matchesQuery && matchesTech && matchesOwner;
     });
-  }, [query, filters, cutoff, projectId]);
+  }, [query, filters, cutoff, projectId, adrs]);
 
   const filteredIncidents = useMemo(() => {
     if (filters.types.length > 0 && !filters.types.includes('Incident')) return [];
-    return mockIncidents.filter((i) => {
+    return incidents.filter((i) => {
       if (projectId && i.projectId !== projectId) return false;
       if (!afterCutoff(i.startTime, cutoff)) return false;
       const q = query.toLowerCase();
@@ -111,11 +171,11 @@ export default function KnowledgeExplorer() {
       // Incidents don't have a team or tech field directly — skip those filters
       return matchesQuery && matchesOwner;
     });
-  }, [query, filters, cutoff, projectId]);
+  }, [query, filters, cutoff, projectId, incidents]);
 
   const filteredPeople = useMemo(() => {
     if (filters.types.length > 0 && !filters.types.includes('Person')) return [];
-    return mockPeople.filter((p) => {
+    return people.filter((p) => {
       if (projectId && p.projectId !== projectId) return false;
       const q = query.toLowerCase();
       const matchesQuery = !query
@@ -130,12 +190,13 @@ export default function KnowledgeExplorer() {
       // Owner filter doesn't apply to people (they ARE the owners)
       return matchesQuery && matchesTeam && matchesTech;
     });
-  }, [query, filters, projectId]);
+  }, [query, filters, projectId, people]);
 
   const filteredDocs = useMemo(() => {
     if (filters.types.length > 0 && !filters.types.includes('Document')) return [];
-    return explorerDocuments.filter((d) => {
+    return documents.filter((d) => {
       if (!afterCutoff(d.updatedAt, cutoff)) return false;
+      if (projectId && d.projectId !== projectId) return false;
       const q = query.toLowerCase();
       const matchesQuery = !query
         || d.title.toLowerCase().includes(q)
@@ -147,7 +208,7 @@ export default function KnowledgeExplorer() {
         || d.tags.some((t) => filters.technologies.some((f) => f.toLowerCase() === t.toLowerCase()));
       return matchesQuery && matchesTeam && matchesOwner && matchesTech;
     });
-  }, [query, filters, cutoff]);
+  }, [query, filters, cutoff, projectId, documents]);
 
   const totalResults =
     filteredServices.length + filteredADRs.length +
@@ -161,8 +222,7 @@ export default function KnowledgeExplorer() {
 
   const clearFilters = () => setFilters(defaultFilters);
   const totalIndexed =
-    mockServices.length + mockADRs.length +
-    mockIncidents.length + mockPeople.length + explorerDocuments.length;
+    services.length + adrs.length + incidents.length + people.length + documents.length;
 
   return (
     <div className="flex h-full max-w-screen-2xl mx-auto">
@@ -172,7 +232,7 @@ export default function KnowledgeExplorer() {
           filters={filters}
           onChange={setFilters}
           onClose={() => setFilterPanelOpen(false)}
-          options={filterOptions}
+          options={liveFilterOptions}
         />
       )}
 

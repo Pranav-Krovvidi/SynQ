@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import AppLayout from '@/components/AppLayout'
 import type { CatalogIncident } from '@/lib/api'
 import { useLiveCatalog } from '@/lib/useLiveCatalog'
@@ -94,6 +94,16 @@ export default function IncidentsPage() {
   const [companyFilter, setCompanyFilter] = useState('all')
   const { data: incidents, loading, error } = useLiveCatalog<CatalogIncident>('/catalog/incidents')
   const companies = Array.from(new Set(incidents.map((incident) => incident.company_name))).sort()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const incident = params.get('incident')
+    const query = params.get('q')
+    if (incident) setSearch(incident)
+    else if (query) setSearch(query)
+    const company = params.get('company')
+    if (company) setCompanyFilter(company)
+  }, [])
 
   const filtered = incidents.filter((i) => {
     const matchSearch =

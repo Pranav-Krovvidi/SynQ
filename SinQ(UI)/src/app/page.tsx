@@ -9,9 +9,14 @@ import RecentActivity from './components/RecentActivity';
 import OnboardingProgress from './components/OnboardingProgress';
 import AskSynQInput from './components/AskSynQInput';
 import { useAuth } from '@/lib/auth';
+import type { CatalogIncident } from '@/lib/api';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { data: incidents } = useLiveCatalog<CatalogIncident>('/catalog/incidents');
+  const activeIncident = incidents.find((incident) => incident.status !== 'resolved');
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -36,12 +41,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Active incident alert */}
-        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/8 border border-red-500/25 text-[13px]">
-          <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
-          <span className="text-red-300 font-medium">Active incident:</span>
-          <span className="text-foreground/80">INC-134 — Analytics Pipeline Kafka rebalance storm · 2h 30m ongoing</span>
-          <span className="ml-auto text-muted-foreground hover:text-foreground cursor-pointer text-[12px]">View →</span>
-        </div>
+        {activeIncident && (
+          <Link href={`/incidents?incident=${encodeURIComponent(activeIncident.id)}`} className="mb-5 flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/8 border border-red-500/25 text-[13px] hover:border-red-400/50">
+            <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
+            <span className="text-red-300 font-medium">Active incident:</span>
+            <span className="text-foreground/80">{activeIncident.id} — {activeIncident.title} · {activeIncident.status}</span>
+            <span className="ml-auto text-muted-foreground text-[12px]">View →</span>
+          </Link>
+        )}
 
         {/* Metrics */}
         <DashboardMetrics />

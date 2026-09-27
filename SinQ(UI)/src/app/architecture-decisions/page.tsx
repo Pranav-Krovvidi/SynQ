@@ -1,8 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { mockADRs, ADR, ADRStatus } from '@/lib/mockData';
+import type { ADR, ADRStatus } from '@/lib/mockData';
+import type { CatalogAdr } from '@/lib/api';
+import { adrFromCatalog } from '@/lib/catalogAdapters';
+import { useLiveCatalog } from '@/lib/useLiveCatalog';
 import { GitBranch, Search, User, Clock, Tag, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -16,7 +19,7 @@ const statusConfig: Record<ADRStatus, { label: string; color: string }> = {
 function ADRCard({ adr }: { adr: ADR }) {
   const status = statusConfig[adr.status];
   return (
-    <Link href={`/architecture-decisions/${adr.id}`}>
+    <Link href={`/architecture-decisions?q=${encodeURIComponent(adr.title)}`}>
       <div className="group border border-border bg-secondary rounded-md p-4 hover:border-primary/40 transition-all duration-150 cursor-pointer">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -61,8 +64,15 @@ function ADRCard({ adr }: { adr: ADR }) {
 export default function ArchitectureDecisionsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const { data, loading, error } = useLiveCatalog<CatalogAdr>('/catalog/adrs');
+  const adrs = data.map(adrFromCatalog);
 
-  const filtered = mockADRs.filter((a) => {
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search).get('q');
+    if (query) setSearch(query);
+  }, []);
+
+  const filtered = adrs.filter((a) => {
     const matchSearch =
       a.title.toLowerCase().includes(search.toLowerCase()) ||
       a.summary.toLowerCase().includes(search.toLowerCase()) ||
@@ -73,9 +83,9 @@ export default function ArchitectureDecisionsPage() {
   });
 
   const counts = {
-    accepted: mockADRs.filter((a) => a.status === 'accepted').length,
-    proposed: mockADRs.filter((a) => a.status === 'proposed').length,
-    draft: mockADRs.filter((a) => a.status === 'draft').length,
+    accepted: adrs.filter((a) => a.status === 'accepted').length,
+    proposed: adrs.filter((a) => a.status === 'proposed').length,
+    draft: adrs.filter((a) => a.status === 'draft').length,
   };
 
   return (
@@ -86,7 +96,7 @@ export default function ArchitectureDecisionsPage() {
           <div>
             <h1 className="text-xl font-bold text-foreground mb-1">Architecture Decisions</h1>
             <p className="text-[13px] text-muted-foreground">
-              {mockADRs.length} decisions recorded · {counts.accepted} accepted · {counts.proposed} proposed · {counts.draft} draft
+              {adrs.length} decisions recorded · {counts.accepted} accepted · {counts.proposed} proposed · {counts.draft} draft
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -131,7 +141,11 @@ export default function ArchitectureDecisionsPage() {
         </div>
 
         {/* List */}
-        {filtered.length === 0 ? (
+        {error ? (
+          <p className="py-12 text-center text-[13px] text-red-400">Unable to load architecture decisions: {error}</p>
+        ) : loading ? (
+          <p className="py-12 text-center text-[13px] text-muted-foreground">Loading architecture decisions…</p>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <GitBranch size={32} className="text-muted-foreground/30 mb-3" />
             <p className="text-[13px] text-muted-foreground">No decisions match your filters.</p>

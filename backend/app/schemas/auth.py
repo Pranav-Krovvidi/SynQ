@@ -34,3 +34,8 @@ class UserCreate(BaseModel):
     password: str
     full_name: str = ""
     role: str = "viewer"
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str

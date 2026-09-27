@@ -84,6 +84,24 @@ export interface CatalogEmployee {
   is_on_call: boolean
 }
 
+export interface CatalogAdr {
+  id: string
+  title: string
+  status: 'accepted' | 'proposed' | 'deprecated' | 'superseded' | 'draft'
+  context: string | null
+  decision: string | null
+  consequences: string | null
+  decided_at: string | null
+  project_id: string
+  project_name?: string
+  company_name?: string
+  author_name?: string | null
+  author_employee_id?: string | null
+  service_names?: string[]
+  created_at?: string
+  updated_at?: string
+}
+
 export interface CatalogService {
   id: string
   name: string
@@ -93,9 +111,12 @@ export interface CatalogService {
   project_id: string
   project_name: string
   company_name: string
+  owner_name?: string | null
+  owner_employee_id?: string | null
   adr_count: number
   incident_count: number
   status: 'operational' | 'incident'
+  updated_at: string
 }
 
 export interface CatalogIncident {
@@ -109,11 +130,21 @@ export interface CatalogIncident {
   service_name: string
   owner_name: string
   owner_email: string
+  owner_employee_id: string | null
   started_at: string
   resolved_at: string | null
   summary: string
   root_cause: string
   resolution: string
+}
+
+export interface CatalogDocument {
+  id: string
+  filename: string
+  project_id: string
+  project_name: string
+  company_name: string
+  updated_at: string
 }
 
 export async function apiLogin(email: string, password: string): Promise<TokenResponse> {

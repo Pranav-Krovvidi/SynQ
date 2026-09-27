@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useAuth } from '@/lib/auth'
 import { Settings, User, Bell, Shield, Plug, Sun, ChevronRight, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/api'
 
 type Tab = 'profile' | 'notifications' | 'security' | 'integrations'
 
@@ -27,10 +28,25 @@ function SettingRow({ label, description, children }: { label: string; descripti
   )
 }
 
-function Toggle({ defaultOn = false }: { defaultOn?: boolean }) {
+function Toggle({ storageKey, defaultOn = false }: { storageKey: string; defaultOn?: boolean }) {
   const [on, setOn] = useState(defaultOn)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`synq_setting_${storageKey}`)
+    if (saved !== null) setOn(saved === 'true')
+    setLoaded(true)
+  }, [storageKey])
+
+  useEffect(() => {
+    if (loaded) localStorage.setItem(`synq_setting_${storageKey}`, String(on))
+  }, [loaded, on, storageKey])
+
   return (
     <button
+      type="button"
+      aria-label={storageKey}
+      aria-pressed={on}
       onClick={() => setOn(!on)}
       className={`w-9 h-5 rounded-full transition-colors relative ${on ? 'bg-primary' : 'bg-muted'}`}
     >
@@ -41,12 +57,43 @@ function Toggle({ defaultOn = false }: { defaultOn?: boolean }) {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile')
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
   const { user, logout } = useAuth()
   const router = useRouter()
 
   const handleLogout = () => {
     logout()
     router.push('/login')
+  }
+
+  const handlePasswordChange = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setPasswordMessage('')
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('New passwords do not match.')
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      await apiFetch<{ status: string }>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      })
+      setPasswordMessage('Password updated.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowPasswordForm(false)
+    } catch (error) {
+      setPasswordMessage((error as Error).message)
+    } finally {
+      setPasswordSaving(false)
+    }
   }
 
   return (
@@ -93,7 +140,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <SettingRow label="Display name" description="Shown in chat and activity feed">
-                  <input className="bg-background border border-border rounded px-2 py-1 text-[12px] text-foreground w-36" defaultValue={user?.name} />
+                  <span className="text-[12px] text-muted-foreground">{user?.name}</span>
                 </SettingRow>
                 <SettingRow label="Email" description="Used for notifications">
                   <span className="text-[12px] text-muted-foreground">{user?.email}</span>
@@ -117,16 +164,16 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-4">Notifications</h2>
                 <SettingRow label="Active incidents" description="Notify when a new incident is opened">
-                  <Toggle defaultOn={true} />
+                  <Toggle storageKey="active_incidents" defaultOn={true} />
                 </SettingRow>
                 <SettingRow label="ADR status changes" description="Notify when ADRs you authored are updated">
-                  <Toggle defaultOn={true} />
+                  <Toggle storageKey="adr_status_changes" defaultOn={true} />
                 </SettingRow>
                 <SettingRow label="Onboarding reminders" description="Daily progress reminders">
-                  <Toggle defaultOn={false} />
+                  <Toggle storageKey="onboarding_reminders" />
                 </SettingRow>
                 <SettingRow label="Knowledge sync alerts" description="Notify when knowledge base is updated">
-                  <Toggle defaultOn={false} />
+                  <Toggle storageKey="knowledge_sync_alerts" />
                 </SettingRow>
               </div>
             )}
@@ -135,15 +182,23 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-4">Security</h2>
                 <SettingRow label="Password" description="Last changed 90 days ago">
-                  <button className="text-[12px] text-primary hover:underline">Change</button>
+                  <button type="button" onClick={() => { setShowPasswordForm((show) => !show); setPasswordMessage(''); }} className="text-[12px] text-primary hover:underline">{showPasswordForm ? 'Cancel' : 'Change'}</button>
                 </SettingRow>
+                {showPasswordForm && (
+                  <form onSubmit={handlePasswordChange} className="grid gap-2 py-3 border-b border-border">
+                    <input type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Current password" className="bg-background border border-border rounded px-3 py-2 text-[12px] text-foreground" />
+                    <input type="password" autoComplete="new-password" required minLength={12} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="New password (12+ characters)" className="bg-background border border-border rounded px-3 py-2 text-[12px] text-foreground" />
+                    <input type="password" autoComplete="new-password" required minLength={12} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Confirm new password" className="bg-background border border-border rounded px-3 py-2 text-[12px] text-foreground" />
+                    {passwordMessage && <p role="status" className="text-[11px] text-muted-foreground">{passwordMessage}</p>}
+                    <button type="submit" disabled={passwordSaving} className="justify-self-start px-3 py-1.5 rounded bg-primary text-background text-[12px] font-medium disabled:opacity-60">{passwordSaving ? 'Updating…' : 'Update password'}</button>
+                  </form>
+                )}
+                {!showPasswordForm && passwordMessage && <p role="status" className="py-2 text-[11px] text-muted-foreground">{passwordMessage}</p>}
                 <SettingRow label="Two-factor authentication" description="Adds an extra layer of security">
-                  <Toggle defaultOn={false} />
+                  <Toggle storageKey="two_factor_auth" />
                 </SettingRow>
-                <SettingRow label="Active sessions" description="1 active session (this browser)">
-                  <button className="text-[12px] text-muted-foreground hover:text-foreground flex items-center gap-1">
-                    View <ChevronRight size={11} />
-                  </button>
+                <SettingRow label="Active session" description="Signed in on this browser">
+                  <span className="text-[11px] text-muted-foreground">Current session</span>
                 </SettingRow>
               </div>
             )}

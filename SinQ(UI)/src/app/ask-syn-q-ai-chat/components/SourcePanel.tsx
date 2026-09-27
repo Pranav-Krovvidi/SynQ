@@ -8,6 +8,7 @@ interface Props {
   sources: ChatSource[];
   selectedSource: ChatSource | null;
   onSourceSelect: (source: ChatSource) => void;
+  onOpenSource: (source: ChatSource) => void;
   onClose: () => void;
 }
 
@@ -35,7 +36,7 @@ const sourceAccent: Record<string, string> = {
   service: 'text-primary',
 };
 
-export default function SourcePanel({ sources, selectedSource, onSourceSelect, onClose }: Props) {
+export default function SourcePanel({ sources, selectedSource, onSourceSelect, onOpenSource, onClose }: Props) {
   const active = selectedSource ?? sources[0];
 
   return (
@@ -101,7 +102,7 @@ export default function SourcePanel({ sources, selectedSource, onSourceSelect, o
             <p className="text-[12px] text-foreground/80 leading-relaxed italic">"{active.excerpt}"</p>
           </div>
 
-          <button className="btn-secondary w-full flex items-center justify-center gap-2 text-[12px]">
+          <button onClick={() => onOpenSource(active)} className="btn-secondary w-full flex items-center justify-center gap-2 text-[12px]">
             <ExternalLink size={12} />
             Open full {sourceTypeLabel[active.type]}
           </button>

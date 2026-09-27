@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { mockChatHistory, followUpSuggestions } from '@/lib/mockData';
 import { useProjectCatalog } from '@/lib/useLiveCatalog';
 import type { CatalogAdr, CatalogIncident, CatalogService } from '@/lib/api';
@@ -29,6 +30,7 @@ function useBackendAvailable() {
 }
 
 export default function ChatInterface() {
+  const router = useRouter();
   const { currentProject } = useAuth();
   // The chat used to query NEXT_PUBLIC_DEMO_PROJECT_ID regardless of the
   // selected project, so questions about one project were answered from
@@ -54,7 +56,7 @@ export default function ChatInterface() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const q = params.get('q')
-    if (q) setInputValue(decodeURIComponent(q))
+    if (q) setInputValue(q)
   }, [])
 
   // Prompts are built from this project's real ADRs and services. The bundled
@@ -97,8 +99,8 @@ export default function ChatInterface() {
       timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
     }
 
-    setMessages((prev) => {
-      const next = [...prev, userMsg]
+    const next = [...messages, userMsg]
+    setMessages(next)
 
       // ── Real backend path ───────────────────────────────────────────────
       if (backendAvailable && projectId) {
@@ -111,16 +113,24 @@ export default function ChatInterface() {
         abortRef.current = streamChat(
           projectId,
           text,
-          buildHistory(next),
+          buildHistory(messages),
           (evt: SSEEvent) => {
             if (evt.event === 'token') {
-              accumulated += evt.data
+              let delta = evt.data
+              try {
+                const payload = JSON.parse(evt.data) as { delta?: string }
+                delta = payload.delta ?? evt.data
+              } catch { /* accept plain-text token events too */ }
+              accumulated += delta
               setStreamingText(accumulated)
             } else if (evt.event === 'citations') {
               try {
-                const raw = JSON.parse(evt.data) as Array<{
+                const payload = JSON.parse(evt.data) as { citations?: Array<{
+                  entity_type: string; entity_id: string; entity_title: string; snippet: string
+                }> } | Array<{
                   entity_type: string; entity_id: string; entity_title: string; snippet: string
                 }>
+                const raw = Array.isArray(payload) ? payload : payload.citations ?? []
                 citations = raw.map((c, i) => ({
                   id: `cit-${i}`,
                   type: (c.entity_type === 'adr' ? 'adr'
@@ -168,9 +178,8 @@ export default function ChatInterface() {
           setIsStreaming(false)
         }, 900)
       }
-    },
-    [isStreaming, backendAvailable, buildHistory, messages, projectId]
-  );
+    
+  }, [isStreaming, backendAvailable, buildHistory, messages, projectId]);
 
   const handleStop = () => {
     abortRef.current?.abort()
@@ -181,6 +190,15 @@ export default function ChatInterface() {
   const handleSourceClick = (source: ChatSource) => {
     setSelectedSource(source);
     setSourcePanelOpen(true);
+  };
+
+  const handleOpenSource = (source: ChatSource) => {
+    setSourcePanelOpen(false);
+    const query = encodeURIComponent(source.title);
+    if (source.type === 'adr') router.push(`/architecture-decisions?q=${query}`);
+    else if (source.type === 'incident') router.push(`/incidents?incident=${encodeURIComponent(source.subtitle || source.title)}`);
+    else if (source.type === 'service') router.push(`/services?q=${query}`);
+    else router.push(`/knowledge-explorer?q=${query}`);
   };
 
   return (
@@ -278,7 +296,7 @@ export default function ChatInterface() {
         {!isStreaming && (
           <div className="px-6 pb-3 flex-shrink-0">
             <div className="flex flex-wrap gap-2 mb-3">
-              {followUpSuggestions.map((s) => (
+              {suggestions.map((s) => (
                 <button
                   key={`followup-${s.slice(0, 20)}`}
                   onClick={() => handleSend(s)}
@@ -318,6 +336,7 @@ export default function ChatInterface() {
           }
           selectedSource={selectedSource}
           onSourceSelect={setSelectedSource}
+          onOpenSource={handleOpenSource}
           onClose={() => setSourcePanelOpen(false)}
         />
       )}

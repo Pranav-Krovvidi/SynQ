@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
-export function useLiveCatalog<T>(path: string, intervalMs = 15000) {
+export function useLiveCatalog<T>(path: string, intervalMs = 15000, enabled = true) {
   const { isAuthenticated } = useAuth()
   const [data, setData] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !enabled) {
       setData([])
       setError(null)
       setLoading(true)
@@ -52,7 +52,21 @@ export function useLiveCatalog<T>(path: string, intervalMs = 15000) {
       active = false
       window.clearInterval(timer)
     }
-  }, [path, intervalMs, isAuthenticated])
+  }, [path, intervalMs, isAuthenticated, enabled])
 
   return { data, loading, error }
+}
+
+export function useProjectCatalog<T extends { project_id: string }>(path: string, intervalMs = 15000) {
+  const { currentProject } = useAuth()
+  const isAdrs = path.endsWith('/adrs')
+  const requestPath = isAdrs && currentProject
+    ? `/projects/${currentProject.id}/adrs`
+    : path
+  const result = useLiveCatalog<T>(requestPath, intervalMs, Boolean(currentProject))
+
+  return {
+    ...result,
+    data: result.data.filter((row) => row.project_id === currentProject?.id),
+  }
 }

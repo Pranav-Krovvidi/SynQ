@@ -48,11 +48,11 @@ export function adrFromCatalog(row: CatalogAdr): ADR {
     title: row.title,
     status: toAdrStatus(row.status),
     author: row.author_name ?? 'Unassigned',
-    date: shortDate(row.decided_at ?? row.updated_at),
-    services: [],
+    date: shortDate(row.decided_at ?? row.updated_at ?? row.created_at ?? null),
+    services: row.service_names ?? [],
     // A project and its company often share a name; duplicate tags collide
     // as React keys in the result cards.
-    tags: Array.from(new Set([row.project_name, row.company_name].filter(Boolean))),
+    tags: Array.from(new Set([row.project_name, row.company_name].filter((tag): tag is string => Boolean(tag)))),
     summary,
     projectId: row.project_id,
     context: row.context ?? undefined,
@@ -71,7 +71,7 @@ export function serviceFromCatalog(row: CatalogService): Service {
     technologies: splitList(row.tech_stack),
     adrCount: row.adr_count,
     incidentCount: row.incident_count,
-    lastUpdated: '',
+    lastUpdated: shortDate(row.updated_at),
     description: row.description ?? '',
     projectId: row.project_id,
   };

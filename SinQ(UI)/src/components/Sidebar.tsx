@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import AppLogo from '@/components/ui/AppLogo'
 import { useAuth } from '@/lib/auth'
+import type { CatalogAdr, CatalogIncident, CatalogProject, CatalogService } from '@/lib/api'
+import { useLiveCatalog } from '@/lib/useLiveCatalog'
 import {
   LayoutDashboard, Compass, Server, FolderKanban, GitBranch,
   AlertTriangle, Users, Sparkles, UserPlus, ArrowRightLeft,
@@ -16,8 +18,6 @@ interface NavItem {
   label: string
   href: string
   icon: React.ReactNode
-  badge?: number
-  badgeColor?: string
 }
 
 interface NavSection {
@@ -39,10 +39,10 @@ const navSections: NavSection[] = [
     label: 'KNOWLEDGE',
     items: [
       { id: 'nav-explorer', label: 'Knowledge Explorer', href: '/knowledge-explorer', icon: <Compass size={16} /> },
-      { id: 'nav-services', label: 'Services', href: '/services', icon: <Server size={16} />, badge: 9 },
-      { id: 'nav-projects', label: 'Projects', href: '/projects', icon: <FolderKanban size={16} />, badge: 4 },
-      { id: 'nav-adrs', label: 'Architecture Decisions', href: '/architecture-decisions', icon: <GitBranch size={16} />, badge: 8 },
-      { id: 'nav-incidents', label: 'Incidents', href: '/incidents', icon: <AlertTriangle size={16} />, badge: 3, badgeColor: 'red' },
+      { id: 'nav-services', label: 'Services', href: '/services', icon: <Server size={16} /> },
+      { id: 'nav-projects', label: 'Projects', href: '/projects', icon: <FolderKanban size={16} /> },
+      { id: 'nav-adrs', label: 'Architecture Decisions', href: '/architecture-decisions', icon: <GitBranch size={16} /> },
+      { id: 'nav-incidents', label: 'Incidents', href: '/incidents', icon: <AlertTriangle size={16} /> },
       { id: 'nav-people', label: 'People', href: '/people', icon: <Users size={16} /> },
     ],
   },
@@ -76,6 +76,16 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { user, currentProject, projects, setCurrentProject } = useAuth()
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { data: services } = useLiveCatalog<CatalogService>('/catalog/services')
+  const { data: catalogProjects } = useLiveCatalog<CatalogProject>('/catalog/projects')
+  const { data: adrs } = useLiveCatalog<CatalogAdr>('/catalog/adrs')
+  const { data: incidents } = useLiveCatalog<CatalogIncident>('/catalog/incidents')
+  const navCounts: Record<string, number> = {
+    'nav-services': services.length,
+    'nav-projects': catalogProjects.length,
+    'nav-adrs': adrs.length,
+    'nav-incidents': incidents.length,
+  }
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -168,6 +178,7 @@ export default function Sidebar() {
             )}
             {section.items.map((item) => {
               const active = isActive(item.id)
+              const badge = navCounts[item.id]
               return (
                 <Link
                   key={item.id}
@@ -183,19 +194,17 @@ export default function Sidebar() {
                   {!collapsed && (
                     <>
                       <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge !== undefined && (
+                      {badge > 0 && (
                         <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full tabular-nums ${
-                          item.badgeColor === 'red'
-                            ? 'bg-red-500/15 text-red-400 border border-red-500/25'
-                            : 'bg-muted text-muted-foreground'
+                          item.id === 'nav-incidents' ? 'bg-red-500/15 text-red-400 border border-red-500/25' : 'bg-muted text-muted-foreground'
                         }`}>
-                          {item.badge}
+                          {badge}
                         </span>
                       )}
                     </>
                   )}
-                  {collapsed && item.badge !== undefined && (
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                  {collapsed && badge > 0 && (
+                    <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${item.id === 'nav-incidents' ? 'bg-red-400' : 'bg-primary'}`} />
                   )}
                 </Link>
               )

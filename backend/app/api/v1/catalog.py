@@ -9,10 +9,12 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_db
-from app.models import Adr, Company, Employee, Incident, Project, Service, adr_services
+from app.models import Adr, Company, Document, Employee, Incident, Project, Service, adr_services
 from app.models.user import User
 from app.schemas.catalog import (
+    AdrCatalogOut,
     CompanyCatalogOut,
+    DocumentCatalogOut,
     EmployeeCatalogOut,
     IncidentCatalogOut,
     ProjectCatalogOut,
@@ -112,6 +114,54 @@ async def list_catalog_projects(
     return [ProjectCatalogOut(**row._mapping) for row in rows]
 
 
+@router.get("/adrs", response_model=list[AdrCatalogOut])
+async def list_catalog_adrs(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[AdrCatalogOut]:
+    query = select(
+        Adr.id,
+        Adr.title,
+        Adr.status,
+        Adr.context,
+        Adr.decision,
+        Adr.consequences,
+        Adr.decided_at,
+        Adr.project_id,
+        Project.name.label("project_name"),
+        func.coalesce(Company.name, "Unassigned").label("company_name"),
+        Employee.full_name.label("author_name"),
+        Adr.author_employee_id,
+        Adr.created_at,
+        Adr.updated_at,
+    ).join(Project, Project.id == Adr.project_id).outerjoin(
+        Company, Company.id == Project.company_id
+    ).outerjoin(
+        Employee, Employee.id == Adr.author_employee_id
+    )
+    project_scope = _project_scope(current_user)
+    if project_scope is not None:
+        query = query.where(Adr.project_id.in_(project_scope))
+    rows = (await db.execute(query.order_by(Company.name, Project.name, Adr.created_at.desc()))).all()
+
+    service_query = select(adr_services.c.adr_id, Service.name).join(
+        Service, Service.id == adr_services.c.service_id
+    )
+    if project_scope is not None:
+        service_query = service_query.join(Adr, Adr.id == adr_services.c.adr_id).where(
+            Adr.project_id.in_(project_scope)
+        )
+    service_rows = (await db.execute(service_query)).all()
+    services_by_adr: dict[uuid.UUID, list[str]] = {}
+    for adr_id, service_name in service_rows:
+        services_by_adr.setdefault(adr_id, []).append(service_name)
+
+    return [
+        AdrCatalogOut(**row._mapping, service_names=services_by_adr.get(row.id, []))
+        for row in rows
+    ]
+
+
 @router.get("/employees", response_model=list[EmployeeCatalogOut])
 async def list_catalog_employees(
     current_user: CurrentUser,
@@ -172,11 +222,16 @@ async def list_catalog_services(
         Service.project_id,
         Project.name.label("project_name"),
         func.coalesce(Company.name, "Unassigned").label("company_name"),
+        Employee.full_name.label("owner_name"),
+        Service.owner_employee_id,
         adr_count.label("adr_count"),
         incident_count.label("incident_count"),
         case((has_active_incident, "incident"), else_="operational").label("status"),
+        Service.updated_at,
     ).join(Project, Project.id == Service.project_id).outerjoin(
         Company, Company.id == Project.company_id
+    ).outerjoin(
+        Employee, Employee.id == Service.owner_employee_id
     )
     project_scope = _project_scope(current_user)
     if project_scope is not None:
@@ -201,6 +256,7 @@ async def list_catalog_incidents(
         func.coalesce(Service.name, "Unassigned").label("service_name"),
         func.coalesce(Employee.full_name, "Unassigned").label("owner_name"),
         func.coalesce(Employee.email, "").label("owner_email"),
+        Incident.owner_employee_id,
         Incident.started_at,
         Incident.resolved_at,
         Incident.summary,
@@ -216,3 +272,25 @@ async def list_catalog_incidents(
         query = query.where(Incident.project_id.in_(project_scope))
     rows = (await db.execute(query.order_by(Incident.started_at.desc()))).all()
     return [IncidentCatalogOut(**row._mapping) for row in rows]
+
+
+@router.get("/documents", response_model=list[DocumentCatalogOut])
+async def list_catalog_documents(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[DocumentCatalogOut]:
+    query = select(
+        Document.id,
+        Document.filename,
+        Document.project_id,
+        Project.name.label("project_name"),
+        func.coalesce(Company.name, "Unassigned").label("company_name"),
+        Document.updated_at,
+    ).join(Project, Project.id == Document.project_id).outerjoin(
+        Company, Company.id == Project.company_id
+    )
+    project_scope = _project_scope(current_user)
+    if project_scope is not None:
+        query = query.where(Document.project_id.in_(project_scope))
+    rows = (await db.execute(query.order_by(Document.updated_at.desc()))).all()
+    return [DocumentCatalogOut(**row._mapping) for row in rows]

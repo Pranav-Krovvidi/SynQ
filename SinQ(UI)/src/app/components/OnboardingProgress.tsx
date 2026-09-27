@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { CheckCircle2, Circle, Lock, ArrowRight } from 'lucide-react';
 import { onboardingSteps } from '@/lib/mockData';
 
@@ -38,8 +39,9 @@ export default function OnboardingProgress() {
         {onboardingSteps.slice(0, 8).map((step) => {
           const isCurrent = (step as any).current;
           return (
-            <div
+            <Link
               key={step.id}
+              href="/onboarding"
               className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-all duration-150 ${
                 isCurrent
                   ? 'bg-accent/8 border border-accent/20'
@@ -68,7 +70,7 @@ export default function OnboardingProgress() {
                   NOW
                 </span>
               )}
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -78,9 +80,9 @@ export default function OnboardingProgress() {
         <p className="text-[11px] text-muted-foreground">
           <span className="text-foreground font-medium">{COMPLETED}</span> of <span className="text-foreground font-medium">{TOTAL}</span> steps · <span className="text-primary font-medium">{TOTAL - COMPLETED} remaining</span>
         </p>
-        <button className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
+        <Link href="/onboarding" className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
           Continue <ArrowRight size={10} />
-        </button>
+        </Link>
       </div>
     </div>
   );

@@ -8,11 +8,15 @@ within a Project.  Tags are stored as a plain text array via PostgreSQL ARRAY.
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ARRAY, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.employee import Employee
 
 
 class Service(TimestampMixin, Base):
@@ -32,11 +36,15 @@ class Service(TimestampMixin, Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    owner_employee_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # relationships
     project: Mapped["Project"] = relationship(  # type: ignore[name-defined]
         "Project", back_populates="services"
     )
+    owner_employee: Mapped["Employee | None"] = relationship("Employee")
     adrs: Mapped[list["Adr"]] = relationship(  # type: ignore[name-defined]
         "Adr", secondary="adr_services", back_populates="services"
     )
