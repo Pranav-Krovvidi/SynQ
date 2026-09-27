@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.query_log import QueryLog
 from app.models.user import User
 from app.rag.citations import Citation, extract_citations
+from app.rag.catalog_facts import build_catalog_facts
 from app.rag.context_builder import build_context
 from app.rag.llm_client import stream_tokens
 from app.rag.prompts import SYSTEM_PROMPT, build_byc_prompt, build_rag_user_prompt
@@ -158,7 +159,8 @@ async def run_rag_pipeline(
         scope_id=scope_id,
     )
 
-    if not chunks:
+    facts_preview = await build_catalog_facts(db, project_id)
+    if not chunks and not facts_preview:
         # No context — emit the canned answer without calling the LLM
         yield _token_event(_NO_CONTEXT_ANSWER)
         log_id = await _save_query_log(
@@ -168,8 +170,16 @@ async def run_rag_pipeline(
         yield _done_event()
         return
 
-    # 2. Build context string
+    # 2. Build context string.
+    # Counts come from aggregates, not vector search, so they are appended last
+    # — nearest the question, where the model weighs them most.
     context = build_context(chunks)
+    facts = facts_preview
+    if facts:
+        context = (
+            f"{context}\n\n[PROJECT FACTS — authoritative, computed live from "
+            f"the knowledge base. Use these exact numbers for any count.]\n{facts}"
+        ).strip()
 
     # 3. Build user prompt
     user_prompt = build_rag_user_prompt(question, context)
