@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { mockChatHistory, followUpSuggestions } from '@/lib/mockData';
+import { useProjectCatalog } from '@/lib/useLiveCatalog';
+import type { CatalogAdr, CatalogIncident, CatalogService } from '@/lib/api';
 import type { ChatMessage, ChatSource } from '@/lib/mockData';
 import { streamChat, type SSEEvent } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -9,7 +11,7 @@ import ChatMessageBubble from './ChatMessageBubble';
 import SourcePanel from './SourcePanel';
 import ChatInput from './ChatInput';
 import { Sparkles, Info, Shield, ChevronRight, WifiOff } from 'lucide-react';
-import { mockServices, mockADRs, mockIncidents, dashboardMetrics } from '@/lib/mockData';
+import { mockServices, mockADRs, mockIncidents } from '@/lib/mockData';
 
 // ── Demo project ID (matches seed_demo.py NovaPay Platform) ──────────────────
 // In production this would come from auth context. For the demo we use proj-001.
@@ -27,8 +29,12 @@ function useBackendAvailable() {
 }
 
 export default function ChatInterface() {
-  const { user } = useAuth()
-  const backendAvailable = useBackendAvailable()
+  const { currentProject } = useAuth();
+  // The chat used to query NEXT_PUBLIC_DEMO_PROJECT_ID regardless of the
+  // selected project, so questions about one project were answered from
+  // another. The env value is now only a fallback.
+  const projectId = currentProject?.id ?? DEMO_PROJECT_ID;
+  const backendAvailable = useBackendAvailable();
 
   const [messages, setMessages] = useState<ChatMessage[]>(mockChatHistory)
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null)
@@ -51,12 +57,34 @@ export default function ChatInterface() {
     if (q) setInputValue(decodeURIComponent(q))
   }, [])
 
-  const buildHistory = useCallback((msgs: ChatMessage[]) =>
-    msgs
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({ role: m.role, content: m.content }))
-      .slice(-20),
-  [])
+  // Prompts are built from this project's real ADRs and services. The bundled
+  // list named entities (INC-127, ADR-042) that exist only in the fixtures, so
+  // every one of them came back "not enough evidence".
+  const { data: liveAdrs } = useProjectCatalog<CatalogAdr>('/catalog/adrs');
+  const { data: liveServices } = useProjectCatalog<CatalogService>('/catalog/services');
+  const { data: liveIncidents } = useProjectCatalog<CatalogIncident>('/catalog/incidents');
+
+  const suggestions = useMemo(() => {
+    const out: string[] = [];
+    liveAdrs.slice(0, 2).forEach((adr) => {
+      const subject = adr.title.replace(/^ADR-\d+\s*[—-]\s*/, '');
+      out.push(`Why did we decide: ${subject}?`);
+    });
+    liveServices.slice(0, 1).forEach((service) => {
+      out.push(`What should I know before modifying ${service.name}?`);
+    });
+    if (liveAdrs.length > 0) out.push('How many ADRs has Alex Morgan written?');
+    return out.length > 0 ? out : followUpSuggestions;
+  }, [liveAdrs, liveServices]);
+
+  const buildHistory = useCallback(
+    (msgs: ChatMessage[]) =>
+      msgs
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({ role: m.role, content: m.content }))
+        .slice(-20),
+    []
+  );
 
   const handleSend = useCallback((text: string) => {
     if (!text.trim() || isStreaming) return
@@ -72,16 +100,16 @@ export default function ChatInterface() {
     setMessages((prev) => {
       const next = [...prev, userMsg]
 
-      // ── Real backend path ─────────────────────────────────────────────────
-      if (backendAvailable && DEMO_PROJECT_ID) {
-        setIsStreaming(true)
-        setStreamingText('')
+      // ── Real backend path ───────────────────────────────────────────────
+      if (backendAvailable && projectId) {
+        setIsStreaming(true);
+        setStreamingText('');
 
         let accumulated = ''
         let citations: ChatSource[] = []
 
         abortRef.current = streamChat(
-          DEMO_PROJECT_ID,
+          projectId,
           text,
           buildHistory(next),
           (evt: SSEEvent) => {
@@ -140,10 +168,9 @@ export default function ChatInterface() {
           setIsStreaming(false)
         }, 900)
       }
-
-      return next
-    })
-  }, [isStreaming, backendAvailable, buildHistory])
+    },
+    [isStreaming, backendAvailable, buildHistory, messages, projectId]
+  );
 
   const handleStop = () => {
     abortRef.current?.abort()
@@ -152,11 +179,9 @@ export default function ChatInterface() {
   }
 
   const handleSourceClick = (source: ChatSource) => {
-    setSelectedSource(source)
-    setSourcePanelOpen(true)
-  }
-
-  const totalItems = dashboardMetrics.knowledgeItems.value
+    setSelectedSource(source);
+    setSourcePanelOpen(true);
+  };
 
   return (
     <div className="flex h-full max-w-screen-2xl mx-auto">
@@ -199,11 +224,16 @@ export default function ChatInterface() {
           <Sparkles size={11} className="text-primary flex-shrink-0" />
           <span>
             SynQ has access to{' '}
-            <span className="text-foreground font-medium">{mockServices.length} services</span>,{' '}
-            <span className="text-foreground font-medium">{mockADRs.length} ADRs</span>,{' '}
-            <span className="text-foreground font-medium">{mockIncidents.length} incidents</span>, and{' '}
-            <span className="text-foreground font-medium">{totalItems} knowledge items</span>
-            {user && <span> for <span className="text-foreground font-medium">NovaPay</span></span>}.
+            <span className="text-foreground font-medium">{liveServices.length} services</span>,{' '}
+            <span className="text-foreground font-medium">{liveAdrs.length} ADRs</span>,{' '}
+            <span className="text-foreground font-medium">{liveIncidents.length} incidents</span>
+            {currentProject && (
+              <span>
+                {' '}
+                for <span className="text-foreground font-medium">{currentProject.name}</span>
+              </span>
+            )}
+            .
           </span>
         </div>
 
