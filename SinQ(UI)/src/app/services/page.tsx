@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import type { CatalogService } from '@/lib/api';
 import { useProjectCatalog } from '@/lib/useLiveCatalog';
@@ -63,7 +63,7 @@ function ServiceCard({ service }: { service: LiveService }) {
   const teamColor = teamColors[service.team] ?? 'bg-muted text-muted-foreground border-border';
 
   return (
-    <Link href={service.id === 'svc-001' ? '/services/payment-service' : `/services/${service.id}`}>
+    <Link href={`/services?q=${encodeURIComponent(service.name)}`}>
       <div className="group border border-border bg-secondary rounded-md p-4 hover:border-primary/40 hover:bg-secondary/80 transition-all duration-150 cursor-pointer">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -144,6 +144,14 @@ export default function ServicesPage() {
     incidentCount: service.incident_count,
     description: service.description ?? '',
   }));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const query = params.get('q');
+    const company = params.get('company');
+    if (query) setSearch(query);
+    if (company) setCompanyFilter(company);
+  }, []);
 
   const teams = Array.from(new Set(mockServices.map((s) => s.team)));
   const companies = Array.from(new Set(mockServices.map((s) => s.company_name))).sort();

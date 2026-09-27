@@ -17,13 +17,13 @@ export default function AskSynQInput() {
 
   const handleSubmit = () => {
     if (query.trim()) {
-      router.push('/ask-syn-q-ai-chat');
+      router.push(`/ask-syn-q-ai-chat?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
   const handleSuggestion = (s: string) => {
     setQuery(s);
-    router.push('/ask-syn-q-ai-chat');
+    router.push(`/ask-syn-q-ai-chat?q=${encodeURIComponent(s)}`);
   };
 
   return (

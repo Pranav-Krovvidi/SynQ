@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from typing import TYPE_CHECKING
 
@@ -53,12 +54,16 @@ class Adr(TimestampMixin, Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    author_employee_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # relationships
     author_employee: Mapped["Employee | None"] = relationship("Employee")
     project: Mapped["Project"] = relationship(  # type: ignore[name-defined]
         "Project", back_populates="adrs"
     )
+    author_employee: Mapped["Employee | None"] = relationship("Employee")
     services: Mapped[list["Service"]] = relationship(  # type: ignore[name-defined]
         "Service", secondary="adr_services", back_populates="adrs"
     )
