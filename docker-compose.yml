@@ -66,6 +66,8 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/api/v1"
+      NEXT_PUBLIC_DEMO_PROJECT_ID: "34a64f04-d47d-4b7d-b168-63ef61d00969"
+      NEXT_PUBLIC_PAYMENT_SERVICE_ID: "b311ccc4-8e60-4fb8-9120-09cb6ebf283b"
     ports:
       - "3000:3000"
     volumes:

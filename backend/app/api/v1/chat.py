@@ -77,9 +77,17 @@ async def _require_project(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Ensure the project exists and the user can access it."""
+    """Ensure the project exists and the user can access it.
+
+    Admins may chat about any project. The catalog already lists every project
+    to them, so an owner-only rule here meant a project could be selected in the
+    UI and then answer "Project not found" when asked about.
+    """
     project = await get_project(db, project_id)
-    if project is None or project.owner_id != current_user.id:
+    is_visible = project is not None and (
+        current_user.role == "admin" or project.owner_id == current_user.id
+    )
+    if not is_visible:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",

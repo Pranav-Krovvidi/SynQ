@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -30,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.query_log import QueryLog
 from app.models.user import User
 from app.rag.citations import Citation, extract_citations
+from app.rag.catalog_facts import build_catalog_facts
 from app.rag.context_builder import build_context
 from app.rag.llm_client import stream_tokens
 from app.rag.prompts import SYSTEM_PROMPT, build_byc_prompt, build_rag_user_prompt
@@ -68,6 +70,30 @@ def _citations_event(citations: list[Citation], query_log_id: uuid.UUID) -> dict
             "query_log_id": str(query_log_id),
         }),
     }
+
+
+def _error_event(message: str) -> dict:
+    return {"event": "error", "data": message}
+
+
+def _describe_llm_failure(exc: Exception) -> str:
+    """Phrase provider errors so the UI states the cause, not just 'failed'."""
+    text = str(exc)
+    if "RESOURCE_EXHAUSTED" in text or "429" in text:
+        delay = re.search(r"retryDelay': '(\d+)s'", text)
+        wait = f" Try again in about {delay.group(1)}s." if delay else ""
+        return (
+            "Gemini's free-tier daily quota for this model is used up."
+            f"{wait} The cap is per model per day, so switching LLM_MODEL_ID "
+            "gives a fresh allowance."
+        )
+    if "API key" in text or "UNAUTHENTICATED" in text or "401" in text:
+        return "Gemini rejected the API key. Check GOOGLE_API_KEY in .env."
+    if "NOT_FOUND" in text or "404" in text:
+        return "The configured LLM_MODEL_ID is not available for this API key."
+    if "503" in text or "UNAVAILABLE" in text:
+        return "Gemini is briefly overloaded. Please try again in a moment."
+    return f"The language model call failed: {text[:200]}"
 
 
 def _done_event() -> dict:
@@ -126,16 +152,26 @@ async def run_rag_pipeline(
     """
     start_ms = int(time.monotonic() * 1000)
 
-    # 1. Retrieve relevant chunks
-    chunks = await retrieve_chunks(
-        db=db,
-        question=question,
-        project_id=project_id,
-        scope_type=scope_type,
-        scope_id=scope_id,
-    )
+    # 1. Retrieve relevant chunks.
+    # Retrieval needs the embedding provider; a counting question does not, so a
+    # provider outage degrades the answer rather than failing the request.
+    try:
+        chunks = await retrieve_chunks(
+            db=db,
+            question=question,
+            project_id=project_id,
+            scope_type=scope_type,
+            scope_id=scope_id,
+        )
+    except Exception:  # noqa: BLE001 — provider/network failures must not 500
+        logger.exception("chunk retrieval failed; answering from project facts only")
+        chunks = []
 
-    if not chunks:
+    # Counts and per-person attribution come from aggregates, not from vector
+    # search, so they are gathered separately and always offered to the model.
+    facts = await build_catalog_facts(db, project_id)
+
+    if not chunks and not facts:
         # No context — emit the canned answer without calling the LLM
         yield _token_event(_NO_CONTEXT_ANSWER)
         log_id = await _save_query_log(
@@ -146,16 +182,24 @@ async def run_rag_pipeline(
         return
 
     # 2. Build context string
-    context = build_context(chunks)
+    context = build_context(chunks) if chunks else ""
+    if facts:
+        context = f"[PROJECT FACTS — authoritative counts]\n{facts}\n\n{context}".rstrip()
 
     # 3. Build user prompt
     user_prompt = build_rag_user_prompt(question, context)
 
     # 4. Stream tokens from the LLM
     assembled_answer = ""
-    async for token in stream_tokens(SYSTEM_PROMPT, user_prompt, conversation_history):
-        assembled_answer += token
-        yield _token_event(token)
+    try:
+        async for token in stream_tokens(SYSTEM_PROMPT, user_prompt, conversation_history):
+            assembled_answer += token
+            yield _token_event(token)
+    except Exception as exc:  # noqa: BLE001 — must reach the client as an event
+        logger.exception("LLM streaming failed")
+        yield _error_event(_describe_llm_failure(exc))
+        yield _done_event()
+        return
 
     # 5. Extract citations from the full answer
     citations = extract_citations(assembled_answer, chunks)

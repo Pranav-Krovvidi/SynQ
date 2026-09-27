@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { GitBranch, User, ArrowRight } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import type { ADR } from '@/lib/mockData';
@@ -17,7 +18,9 @@ function highlight(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-accent/20 text-accent rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="bg-accent/20 text-accent rounded-sm px-0.5">
+        {text.slice(idx, idx + query.length)}
+      </mark>
       {text.slice(idx + query.length)}
     </>
   );
@@ -25,7 +28,10 @@ function highlight(text: string, query: string): React.ReactNode {
 
 export default function ADRResultCard({ adr, query }: Props) {
   return (
-    <div className="synq-card p-4 card-hover cursor-pointer group">
+    <Link
+      href={`/architecture-decisions/${adr.id}`}
+      className="synq-card p-4 card-hover cursor-pointer group block"
+    >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-start gap-2 min-w-0">
           <div className="w-6 h-6 rounded-md bg-accent/10 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -65,9 +71,12 @@ export default function ADRResultCard({ adr, query }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <span className="font-mono">{adr.date}</span>
-          <ArrowRight size={12} className="text-muted-foreground group-hover:text-accent transition-colors" />
+          <ArrowRight
+            size={12}
+            className="text-muted-foreground group-hover:text-accent transition-colors"
+          />
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

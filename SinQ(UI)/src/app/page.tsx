@@ -9,9 +9,14 @@ import RecentActivity from './components/RecentActivity';
 import OnboardingProgress from './components/OnboardingProgress';
 import AskSynQInput from './components/AskSynQInput';
 import { useAuth } from '@/lib/auth';
+import { useProjectCatalog } from '@/lib/useLiveCatalog';
+import type { CatalogIncident } from '@/lib/api';
+import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, currentProject } = useAuth();
+  const { data: incidents } = useProjectCatalog<CatalogIncident>('/catalog/incidents');
+  const activeIncident = incidents.find((incident) => incident.status !== 'resolved') ?? null;
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -22,9 +27,13 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-[22px] font-bold text-foreground tracking-tight">{greeting}, {firstName}</h1>
+            <h1 className="text-[22px] font-bold text-foreground tracking-tight">
+              {greeting}, {firstName}
+            </h1>
             <p className="text-[13px] text-muted-foreground mt-0.5">
-              Here&apos;s what&apos;s changed in your company&apos;s technical memory
+              {currentProject
+                ? `What's changed in ${currentProject.name}`
+                : "Here's what's changed in your company's technical memory"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -35,13 +44,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Active incident alert */}
-        <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/8 border border-red-500/25 text-[13px]">
-          <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
-          <span className="text-red-300 font-medium">Active incident:</span>
-          <span className="text-foreground/80">INC-134 — Analytics Pipeline Kafka rebalance storm · 2h 30m ongoing</span>
-          <span className="ml-auto text-muted-foreground hover:text-foreground cursor-pointer text-[12px]">View →</span>
-        </div>
+        {/* Active incident alert — only when this project actually has one */}
+        {activeIncident && (
+          <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/8 border border-red-500/25 text-[13px]">
+            <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0 animate-pulse" />
+            <span className="text-red-300 font-medium">Active incident:</span>
+            <span className="text-foreground/80">
+              {activeIncident.id} — {activeIncident.title} · {activeIncident.severity} ·{' '}
+              {activeIncident.status}
+            </span>
+            <Link
+              href="/incidents"
+              className="ml-auto text-muted-foreground hover:text-foreground text-[12px]"
+            >
+              View →
+            </Link>
+          </div>
+        )}
 
         {/* Metrics */}
         <DashboardMetrics />

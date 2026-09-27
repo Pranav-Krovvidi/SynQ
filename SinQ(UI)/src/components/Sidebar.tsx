@@ -1,29 +1,44 @@
-'use client'
+'use client';
 
-import React, { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import AppLogo from '@/components/ui/AppLogo'
-import { useAuth } from '@/lib/auth'
+import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useProjectCatalog } from '@/lib/useLiveCatalog';
+import type { CatalogAdr, CatalogIncident, CatalogService } from '@/lib/api';
+import AppLogo from '@/components/ui/AppLogo';
+import { useAuth } from '@/lib/auth';
 import {
-  LayoutDashboard, Compass, Server, FolderKanban, GitBranch,
-  AlertTriangle, Users, Sparkles, UserPlus, ArrowRightLeft,
-  Settings, ChevronLeft, ChevronRight, Circle, ChevronDown, Check,
-} from 'lucide-react'
+  LayoutDashboard,
+  Compass,
+  Server,
+  FolderKanban,
+  GitBranch,
+  AlertTriangle,
+  Users,
+  Sparkles,
+  UserPlus,
+  ArrowRightLeft,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  ChevronDown,
+  Check,
+} from 'lucide-react';
 
 interface NavItem {
-  id: string
-  label: string
-  href: string
-  icon: React.ReactNode
-  badge?: number
-  badgeColor?: string
+  id: string;
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+  badge?: number;
+  badgeColor?: string;
 }
 
 interface NavSection {
-  id: string
-  label: string
-  items: NavItem[]
+  id: string;
+  label: string;
+  items: NavItem[];
 }
 
 const navSections: NavSection[] = [
@@ -38,11 +53,32 @@ const navSections: NavSection[] = [
     id: 'knowledge',
     label: 'KNOWLEDGE',
     items: [
-      { id: 'nav-explorer', label: 'Knowledge Explorer', href: '/knowledge-explorer', icon: <Compass size={16} /> },
-      { id: 'nav-services', label: 'Services', href: '/services', icon: <Server size={16} />, badge: 9 },
-      { id: 'nav-projects', label: 'Projects', href: '/projects', icon: <FolderKanban size={16} />, badge: 4 },
-      { id: 'nav-adrs', label: 'Architecture Decisions', href: '/architecture-decisions', icon: <GitBranch size={16} />, badge: 8 },
-      { id: 'nav-incidents', label: 'Incidents', href: '/incidents', icon: <AlertTriangle size={16} />, badge: 3, badgeColor: 'red' },
+      {
+        id: 'nav-explorer',
+        label: 'Knowledge Explorer',
+        href: '/knowledge-explorer',
+        icon: <Compass size={16} />,
+      },
+      { id: 'nav-services', label: 'Services', href: '/services', icon: <Server size={16} /> },
+      {
+        id: 'nav-projects',
+        label: 'Projects',
+        href: '/projects',
+        icon: <FolderKanban size={16} />,
+      },
+      {
+        id: 'nav-adrs',
+        label: 'Architecture Decisions',
+        href: '/architecture-decisions',
+        icon: <GitBranch size={16} />,
+      },
+      {
+        id: 'nav-incidents',
+        label: 'Incidents',
+        href: '/incidents',
+        icon: <AlertTriangle size={16} />,
+        badgeColor: 'red',
+      },
       { id: 'nav-people', label: 'People', href: '/people', icon: <Users size={16} /> },
     ],
   },
@@ -50,15 +86,30 @@ const navSections: NavSection[] = [
     id: 'ai',
     label: 'AI',
     items: [
-      { id: 'nav-ask', label: 'Ask SynQ', href: '/ask-syn-q-ai-chat', icon: <Sparkles size={16} /> },
+      {
+        id: 'nav-ask',
+        label: 'Ask SynQ',
+        href: '/ask-syn-q-ai-chat',
+        icon: <Sparkles size={16} />,
+      },
     ],
   },
   {
     id: 'workflows',
     label: 'WORKFLOWS',
     items: [
-      { id: 'nav-onboarding', label: 'Onboarding', href: '/onboarding', icon: <UserPlus size={16} /> },
-      { id: 'nav-handover', label: 'Handover', href: '/handover', icon: <ArrowRightLeft size={16} /> },
+      {
+        id: 'nav-onboarding',
+        label: 'Onboarding',
+        href: '/onboarding',
+        icon: <UserPlus size={16} />,
+      },
+      {
+        id: 'nav-handover',
+        label: 'Handover',
+        href: '/handover',
+        icon: <ArrowRightLeft size={16} />,
+      },
     ],
   },
   {
@@ -68,40 +119,53 @@ const navSections: NavSection[] = [
       { id: 'nav-settings', label: 'Settings', href: '/settings', icon: <Settings size={16} /> },
     ],
   },
-]
+];
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false)
-  const pathname = usePathname()
-  const { user, currentProject, projects, setCurrentProject } = useAuth()
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(false);
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const pathname = usePathname();
+  const { user, currentProject, projects, setCurrentProject } = useAuth();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Badges count the selected project's own records, so they move with the
+  // project switcher directly above them. Projects is a workspace-wide total.
+  const { data: scopedServices } = useProjectCatalog<CatalogService>('/catalog/services');
+  const { data: scopedAdrs } = useProjectCatalog<CatalogAdr>('/catalog/adrs');
+  const { data: scopedIncidents } = useProjectCatalog<CatalogIncident>('/catalog/incidents');
+
+  const badges: Record<string, number> = {
+    'nav-services': scopedServices.length,
+    'nav-projects': projects.length,
+    'nav-adrs': scopedAdrs.length,
+    'nav-incidents': scopedIncidents.filter((incident) => incident.status !== 'resolved').length,
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setProjectDropdownOpen(false)
+        setProjectDropdownOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const isActive = (id: string) => {
-    if (id === 'nav-dashboard' && pathname === '/') return true
-    if (id === 'nav-ask' && pathname === '/ask-syn-q-ai-chat') return true
-    if (id === 'nav-explorer' && pathname === '/knowledge-explorer') return true
-    if (id === 'nav-services' && pathname.startsWith('/services')) return true
-    if (id === 'nav-adrs' && pathname.startsWith('/architecture-decisions')) return true
-    if (id === 'nav-incidents' && pathname.startsWith('/incidents')) return true
-    if (id === 'nav-people' && pathname.startsWith('/people')) return true
-    if (id === 'nav-projects' && pathname.startsWith('/projects')) return true
-    if (id === 'nav-onboarding' && pathname.startsWith('/onboarding')) return true
-    if (id === 'nav-handover' && pathname.startsWith('/handover')) return true
-    if (id === 'nav-settings' && pathname.startsWith('/settings')) return true
-    return false
-  }
+    if (id === 'nav-dashboard' && pathname === '/') return true;
+    if (id === 'nav-ask' && pathname === '/ask-syn-q-ai-chat') return true;
+    if (id === 'nav-explorer' && pathname === '/knowledge-explorer') return true;
+    if (id === 'nav-services' && pathname.startsWith('/services')) return true;
+    if (id === 'nav-adrs' && pathname.startsWith('/architecture-decisions')) return true;
+    if (id === 'nav-incidents' && pathname.startsWith('/incidents')) return true;
+    if (id === 'nav-people' && pathname.startsWith('/people')) return true;
+    if (id === 'nav-projects' && pathname.startsWith('/projects')) return true;
+    if (id === 'nav-onboarding' && pathname.startsWith('/onboarding')) return true;
+    if (id === 'nav-handover' && pathname.startsWith('/handover')) return true;
+    if (id === 'nav-settings' && pathname.startsWith('/settings')) return true;
+    return false;
+  };
 
   return (
     <aside
@@ -119,7 +183,9 @@ export default function Sidebar() {
       {/* Project switcher */}
       {!collapsed && (
         <div className="px-2 pt-3 pb-2" ref={dropdownRef}>
-          <p className="text-[10px] font-semibold tracking-widest text-muted-foreground px-2 mb-1.5 uppercase">Project</p>
+          <p className="text-[10px] font-semibold tracking-widest text-muted-foreground px-2 mb-1.5 uppercase">
+            Project
+          </p>
           <button
             onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
             className="w-full flex items-center gap-2 px-2 py-2 rounded-md bg-muted/60 border border-border hover:border-primary/30 transition-colors text-left"
@@ -131,7 +197,10 @@ export default function Sidebar() {
             <span className="flex-1 text-[12px] font-medium text-foreground truncate">
               {currentProject?.name ?? 'Select project'}
             </span>
-            <ChevronDown size={12} className={`text-muted-foreground transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              size={12}
+              className={`text-muted-foreground transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`}
+            />
           </button>
 
           {projectDropdownOpen && (
@@ -139,13 +208,21 @@ export default function Sidebar() {
               {projects.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => { setCurrentProject(p); setProjectDropdownOpen(false) }}
+                  onClick={() => {
+                    setCurrentProject(p);
+                    setProjectDropdownOpen(false);
+                  }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted/60 transition-colors text-left"
                 >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ background: p.color }}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-medium text-foreground truncate">{p.name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{p.services} services · {p.adrs} ADRs</p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {p.services} services · {p.adrs} ADRs
+                    </p>
                   </div>
                   {currentProject?.id === p.id && (
                     <Check size={11} className="text-primary flex-shrink-0" />
@@ -167,7 +244,7 @@ export default function Sidebar() {
               </p>
             )}
             {section.items.map((item) => {
-              const active = isActive(item.id)
+              const active = isActive(item.id);
               return (
                 <Link
                   key={item.id}
@@ -183,22 +260,24 @@ export default function Sidebar() {
                   {!collapsed && (
                     <>
                       <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge !== undefined && (
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full tabular-nums ${
-                          item.badgeColor === 'red'
-                            ? 'bg-red-500/15 text-red-400 border border-red-500/25'
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {item.badge}
+                      {badges[item.id] > 0 && (
+                        <span
+                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full tabular-nums ${
+                            item.badgeColor === 'red'
+                              ? 'bg-red-500/15 text-red-400 border border-red-500/25'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {badges[item.id]}
                         </span>
                       )}
                     </>
                   )}
-                  {collapsed && item.badge !== undefined && (
+                  {collapsed && badges[item.id] > 0 && (
                     <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
                   )}
                 </Link>
-              )
+              );
             })}
           </div>
         ))}
@@ -212,7 +291,9 @@ export default function Sidebar() {
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-semibold text-foreground truncate">{user?.name ?? 'Guest'}</p>
+              <p className="text-[12px] font-semibold text-foreground truncate">
+                {user?.name ?? 'Guest'}
+              </p>
               <div className="flex items-center gap-1.5">
                 <Circle size={6} className="text-green-400 fill-green-400 flex-shrink-0" />
                 <p className="text-[10px] text-muted-foreground truncate">{user?.title ?? ''}</p>
@@ -231,5 +312,5 @@ export default function Sidebar() {
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
     </aside>
-  )
+  );
 }

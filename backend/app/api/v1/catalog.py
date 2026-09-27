@@ -12,6 +12,7 @@ from app.api.deps import CurrentUser, get_db
 from app.models import Adr, Company, Employee, Incident, Project, Service, adr_services
 from app.models.user import User
 from app.schemas.catalog import (
+    AdrCatalogOut,
     CompanyCatalogOut,
     EmployeeCatalogOut,
     IncidentCatalogOut,
@@ -172,12 +173,14 @@ async def list_catalog_services(
         Service.project_id,
         Project.name.label("project_name"),
         func.coalesce(Company.name, "Unassigned").label("company_name"),
+        Service.owner_employee_id,
+        Employee.full_name.label("owner_name"),
         adr_count.label("adr_count"),
         incident_count.label("incident_count"),
         case((has_active_incident, "incident"), else_="operational").label("status"),
     ).join(Project, Project.id == Service.project_id).outerjoin(
         Company, Company.id == Project.company_id
-    )
+    ).outerjoin(Employee, Employee.id == Service.owner_employee_id)
     project_scope = _project_scope(current_user)
     if project_scope is not None:
         query = query.where(Service.project_id.in_(project_scope))
@@ -199,6 +202,7 @@ async def list_catalog_incidents(
         Project.name.label("project_name"),
         Company.name.label("company_name"),
         func.coalesce(Service.name, "Unassigned").label("service_name"),
+        Incident.owner_employee_id,
         func.coalesce(Employee.full_name, "Unassigned").label("owner_name"),
         func.coalesce(Employee.email, "").label("owner_email"),
         Incident.started_at,
@@ -216,3 +220,38 @@ async def list_catalog_incidents(
         query = query.where(Incident.project_id.in_(project_scope))
     rows = (await db.execute(query.order_by(Incident.started_at.desc()))).all()
     return [IncidentCatalogOut(**row._mapping) for row in rows]
+
+
+@router.get("/adrs", response_model=list[AdrCatalogOut])
+async def list_catalog_adrs(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[AdrCatalogOut]:
+    service_count = (
+        select(func.count(adr_services.c.service_id))
+        .where(adr_services.c.adr_id == Adr.id)
+        .scalar_subquery()
+    )
+    query = select(
+        Adr.id,
+        Adr.title,
+        Adr.status,
+        Adr.context,
+        Adr.decision,
+        Adr.consequences,
+        Adr.decided_at,
+        Adr.project_id,
+        Project.name.label("project_name"),
+        func.coalesce(Company.name, "Unassigned").label("company_name"),
+        Adr.author_employee_id,
+        Employee.full_name.label("author_name"),
+        service_count.label("service_count"),
+        Adr.updated_at,
+    ).join(Project, Project.id == Adr.project_id).outerjoin(
+        Company, Company.id == Project.company_id
+    ).outerjoin(Employee, Employee.id == Adr.author_employee_id)
+    project_scope = _project_scope(current_user)
+    if project_scope is not None:
+        query = query.where(Adr.project_id.in_(project_scope))
+    rows = (await db.execute(query.order_by(Adr.updated_at.desc()))).all()
+    return [AdrCatalogOut(**row._mapping) for row in rows]

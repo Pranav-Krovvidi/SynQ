@@ -1,7 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import React from 'react';
-import { X, ExternalLink, GitBranch, AlertTriangle, MessageSquare, FileText, Server, TrendingUp } from 'lucide-react';
+import {
+  X,
+  ExternalLink,
+  GitBranch,
+  AlertTriangle,
+  MessageSquare,
+  FileText,
+  Server,
+  TrendingUp,
+} from 'lucide-react';
 import type { ChatSource } from '@/lib/mockData';
 
 interface Props {
@@ -59,16 +69,21 @@ export default function SourcePanel({ sources, selectedSource, onSourceSelect, o
             onClick={() => onSourceSelect(source)}
             className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
               active?.id === source.id
-                ? 'bg-primary/8 border border-primary/20' :'hover:bg-muted border border-transparent'
+                ? 'bg-primary/8 border border-primary/20'
+                : 'hover:bg-muted border border-transparent'
             }`}
           >
-            <span className={`flex-shrink-0 ${sourceAccent[source.type]}`}>{sourceIcon[source.type]}</span>
+            <span className={`flex-shrink-0 ${sourceAccent[source.type]}`}>
+              {sourceIcon[source.type]}
+            </span>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-semibold text-foreground">{source.title}</p>
               <p className="text-[11px] text-muted-foreground truncate">{source.subtitle}</p>
             </div>
             <div className="flex-shrink-0 text-right">
-              <div className="text-[11px] font-mono text-green-400 tabular-nums">{source.confidence}%</div>
+              <div className="text-[11px] font-mono text-green-400 tabular-nums">
+                {source.confidence}%
+              </div>
               <div className="text-[9px] text-muted-foreground">match</div>
             </div>
           </button>
@@ -97,14 +112,27 @@ export default function SourcePanel({ sources, selectedSource, onSourceSelect, o
           </div>
 
           <div className="synq-card p-3 mb-4">
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 font-semibold">Relevant excerpt</p>
-            <p className="text-[12px] text-foreground/80 leading-relaxed italic">"{active.excerpt}"</p>
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 font-semibold">
+              Relevant excerpt
+            </p>
+            <p className="text-[12px] text-foreground/80 leading-relaxed italic">
+              &ldquo;{active.excerpt}&rdquo;
+            </p>
           </div>
 
-          <button className="btn-secondary w-full flex items-center justify-center gap-2 text-[12px]">
+          <Link
+            href={
+              active.type === 'adr' && active.subtitle
+                ? `/architecture-decisions/${active.subtitle}`
+                : active.type === 'incident'
+                  ? '/incidents'
+                  : '/knowledge-explorer'
+            }
+            className="btn-secondary w-full flex items-center justify-center gap-2 text-[12px]"
+          >
             <ExternalLink size={12} />
             Open full {sourceTypeLabel[active.type]}
-          </button>
+          </Link>
         </div>
       )}
     </aside>

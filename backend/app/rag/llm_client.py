@@ -10,6 +10,7 @@ the model produces them — no thread offloading or queue bridging required.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -112,17 +113,34 @@ async def stream_tokens(
         **_DEFAULT_PARAMS,
     )
 
-    try:
-        stream = await client.aio.models.generate_content_stream(
-            model=settings.llm_model_id,
-            contents=contents,
-            config=config,
-        )
-        async for chunk in stream:
-            # A chunk can carry no text (safety blocks, usage-only deltas).
-            text = getattr(chunk, "text", None)
-            if text:
-                yield text
-    except Exception as exc:
-        logger.error("Gemini streaming error: %s", exc)
-        raise RuntimeError(f"LLM call failed: {exc}") from exc
+    # Gemini returns 503 UNAVAILABLE when a model is briefly oversubscribed and
+    # asks callers to retry. Retrying is only safe before the first chunk is
+    # yielded; after that the caller has already shown partial text.
+    attempts = 3
+    for attempt in range(attempts):
+        produced = False
+        try:
+            stream = await client.aio.models.generate_content_stream(
+                model=settings.llm_model_id,
+                contents=contents,
+                config=config,
+            )
+            async for chunk in stream:
+                # A chunk can carry no text (safety blocks, usage-only deltas).
+                text = getattr(chunk, "text", None)
+                if text:
+                    produced = True
+                    yield text
+            return
+        except Exception as exc:
+            retryable = "503" in str(exc) or "UNAVAILABLE" in str(exc)
+            if retryable and not produced and attempt < attempts - 1:
+                delay = 2 ** attempt
+                logger.warning(
+                    "Gemini unavailable (attempt %d/%d); retrying in %ss",
+                    attempt + 1, attempts, delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+            logger.error("Gemini streaming error: %s", exc)
+            raise RuntimeError(f"LLM call failed: {exc}") from exc

@@ -52,6 +52,8 @@ class ServiceCatalogOut(BaseModel):
     project_id: uuid.UUID
     project_name: str
     company_name: str
+    owner_employee_id: uuid.UUID | None
+    owner_name: str | None
     adr_count: int
     incident_count: int
     status: str
@@ -66,6 +68,7 @@ class IncidentCatalogOut(BaseModel):
     project_name: str
     company_name: str
     service_name: str
+    owner_employee_id: uuid.UUID | None
     owner_name: str
     owner_email: str
     started_at: datetime
@@ -73,3 +76,20 @@ class IncidentCatalogOut(BaseModel):
     summary: str
     root_cause: str
     resolution: str
+
+
+class AdrCatalogOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    status: str
+    context: str | None
+    decision: str | None
+    consequences: str | None
+    decided_at: datetime | None
+    project_id: uuid.UUID
+    project_name: str
+    company_name: str
+    author_employee_id: uuid.UUID | None
+    author_name: str | None
+    service_count: int
+    updated_at: datetime
