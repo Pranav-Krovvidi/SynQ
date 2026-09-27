@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { mockChatHistory, followUpSuggestions } from '@/lib/mockData';
 import { useProjectCatalog } from '@/lib/useLiveCatalog';
 import type { CatalogAdr, CatalogIncident, CatalogService } from '@/lib/api';
@@ -36,7 +36,7 @@ export default function ChatInterface() {
   const projectId = currentProject?.id ?? DEMO_PROJECT_ID;
   const backendAvailable = useBackendAvailable();
 
-  const [messages, setMessages] = useState<ChatMessage[]>(mockChatHistory)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState('')
@@ -86,24 +86,30 @@ export default function ChatInterface() {
     []
   );
 
-  const handleSend = useCallback((text: string) => {
-    if (!text.trim() || isStreaming) return
-    setError(null)
+  const handleSend = useCallback(
+    (text: string) => {
+      if (!text.trim() || isStreaming) return
+      setError(null)
 
-    const userMsg: ChatMessage = {
-      id: `msg-user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-    }
+      const userMsg: ChatMessage = {
+        id: `msg-user-${Date.now()}`,
+        role: 'user',
+        content: text,
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+      }
 
-    setMessages((prev) => {
-      const next = [...prev, userMsg]
+      // The updater stays pure. React invokes updaters twice under StrictMode,
+      // so starting the request inside one sent every question twice.
+      const next = [...messages, userMsg]
+      setMessages(next)
 
-      // ── Real backend path ───────────────────────────────────────────────
       if (backendAvailable && projectId) {
-        setIsStreaming(true);
-        setStreamingText('');
+        setIsStreaming(true)
+        setStreamingText('')
 
         let accumulated = ''
         let citations: ChatSource[] = []
@@ -114,35 +120,52 @@ export default function ChatInterface() {
           buildHistory(next),
           (evt: SSEEvent) => {
             if (evt.event === 'token') {
-              accumulated += evt.data
+              // The server sends {"delta": "..."}, not a bare string.
+              try {
+                accumulated += (JSON.parse(evt.data) as { delta?: string }).delta ?? ''
+              } catch {
+                accumulated += evt.data
+              }
               setStreamingText(accumulated)
             } else if (evt.event === 'citations') {
               try {
-                const raw = JSON.parse(evt.data) as Array<{
-                  entity_type: string; entity_id: string; entity_title: string; snippet: string
-                }>
-                citations = raw.map((c, i) => ({
+                const payload = JSON.parse(evt.data) as {
+                  citations?: Array<{
+                    entity_type: string
+                    entity_id: string
+                    entity_title: string
+                    snippet: string
+                  }>
+                }
+                citations = (payload.citations ?? []).map((c, i) => ({
                   id: `cit-${i}`,
-                  type: (c.entity_type === 'adr' ? 'adr'
-                    : c.entity_type === 'incident' ? 'incident'
-                    : 'document') as ChatSource['type'],
+                  type: (c.entity_type === 'adr'
+                    ? 'adr'
+                    : c.entity_type === 'incident'
+                      ? 'incident'
+                      : 'document') as ChatSource['type'],
                   title: c.entity_title,
                   subtitle: c.entity_id,
                   date: '',
                   excerpt: c.snippet,
                   confidence: 90 - i * 5,
                 }))
-              } catch { /* ignore parse errors */ }
+              } catch {
+                /* ignore parse errors */
+              }
             }
           },
           () => {
-            // done
             const aiMsg: ChatMessage = {
               id: `msg-ai-${Date.now()}`,
               role: 'assistant',
               content: accumulated,
               sources: citations.length > 0 ? citations : undefined,
-              timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+              timestamp: new Date().toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              }),
             }
             setMessages((prev) => [...prev, aiMsg])
             setStreamingText('')
@@ -152,25 +175,28 @@ export default function ChatInterface() {
             setError(err)
             setIsStreaming(false)
             setStreamingText('')
-          },
+          }
         )
       } else {
-        // ── Mock fallback (no backend / no project ID) ────────────────────────
         setIsStreaming(true)
         setTimeout(() => {
           const aiMsg: ChatMessage = {
             id: `msg-ai-${Date.now()}`,
             role: 'assistant',
-            content: `**SynQ demo mode** — backend not connected.\n\nYour question about **"${text}"** would be answered by searching ${mockServices.length} services, ${mockADRs.length} ADRs, and ${mockIncidents.length} incidents in your NovaPay knowledge base.\n\nConnect the backend and add \`NEXT_PUBLIC_API_BASE_URL\` + \`NEXT_PUBLIC_DEMO_PROJECT_ID\` to your environment to enable live AI responses.`,
-            timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+            content: `**SynQ demo mode** — backend not connected.\n\nConnect the backend and set \`NEXT_PUBLIC_API_BASE_URL\` to enable live AI responses.`,
+            timestamp: new Date().toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            }),
           }
-          setMessages((p) => [...p, aiMsg])
+          setMessages((prev) => [...prev, aiMsg])
           setIsStreaming(false)
         }, 900)
       }
     },
     [isStreaming, backendAvailable, buildHistory, messages, projectId]
-  );
+  )
 
   const handleStop = () => {
     abortRef.current?.abort()
@@ -278,7 +304,7 @@ export default function ChatInterface() {
         {!isStreaming && (
           <div className="px-6 pb-3 flex-shrink-0">
             <div className="flex flex-wrap gap-2 mb-3">
-              {followUpSuggestions.map((s) => (
+              {suggestions.map((s) => (
                 <button
                   key={`followup-${s.slice(0, 20)}`}
                   onClick={() => handleSend(s)}

@@ -93,6 +93,8 @@ export interface CatalogService {
   project_id: string
   project_name: string
   company_name: string
+  owner_employee_id: string | null
+  owner_name: string | null
   adr_count: number
   incident_count: number
   status: 'operational' | 'incident'
@@ -107,6 +109,7 @@ export interface CatalogIncident {
   project_name: string
   company_name: string
   service_name: string
+  owner_employee_id: string | null
   owner_name: string
   owner_email: string
   started_at: string
@@ -114,6 +117,23 @@ export interface CatalogIncident {
   summary: string
   root_cause: string
   resolution: string
+}
+
+export interface CatalogAdr {
+  id: string
+  title: string
+  status: 'proposed' | 'accepted' | 'deprecated' | 'superseded'
+  context: string | null
+  decision: string | null
+  consequences: string | null
+  decided_at: string | null
+  project_id: string
+  project_name: string
+  company_name: string
+  author_employee_id: string | null
+  author_name: string | null
+  service_count: number
+  updated_at: string
 }
 
 export async function apiLogin(email: string, password: string): Promise<TokenResponse> {

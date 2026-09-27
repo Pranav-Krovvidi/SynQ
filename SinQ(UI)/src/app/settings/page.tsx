@@ -32,9 +32,11 @@ function Toggle({ defaultOn = false }: { defaultOn?: boolean }) {
   return (
     <button
       onClick={() => setOn(!on)}
-      className={`w-9 h-5 rounded-full transition-colors relative ${on ? 'bg-primary' : 'bg-muted'}`}
+      role="switch"
+      aria-checked={on}
+      className={`block shrink-0 w-9 h-5 rounded-full transition-colors relative ${on ? 'bg-primary' : 'bg-muted'}`}
     >
-      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0'}`} />
     </button>
   )
 }

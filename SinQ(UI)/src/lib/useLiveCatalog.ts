@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 
@@ -55,4 +55,27 @@ export function useLiveCatalog<T>(path: string, intervalMs = 15000) {
   }, [path, intervalMs, isAuthenticated])
 
   return { data, loading, error }
+}
+
+/**
+ * Catalog rows narrowed to the project selected in the sidebar.
+ *
+ * The catalog endpoints return every project the user can see, so switching
+ * projects is a filter over data already in memory — the list re-derives on the
+ * same tick as the switch instead of waiting for the next poll.
+ */
+export function useProjectCatalog<T extends { project_id: string }>(
+  path: string,
+  intervalMs = 15000,
+) {
+  const { currentProject } = useAuth()
+  const { data, loading, error } = useLiveCatalog<T>(path, intervalMs)
+
+  const projectId = currentProject?.id ?? null
+  const scoped = useMemo(
+    () => (projectId ? data.filter((row) => row.project_id === projectId) : data),
+    [data, projectId],
+  )
+
+  return { data: scoped, allData: data, loading, error, scopedToProject: !!projectId }
 }
