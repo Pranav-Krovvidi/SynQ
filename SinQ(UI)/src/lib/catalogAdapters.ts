@@ -25,10 +25,15 @@ function shortDate(value: string | null): string {
 }
 
 function splitList(value: string | null): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
+  // Keyed by value in the result cards, so duplicates must not survive.
+  return Array.from(
+    new Set(
+      (value ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 /** The backend allows 'deprecated'; the UI's union calls that 'superseded'. */
@@ -45,7 +50,9 @@ export function adrFromCatalog(row: CatalogAdr): ADR {
     author: row.author_name ?? 'Unassigned',
     date: shortDate(row.decided_at ?? row.updated_at),
     services: [],
-    tags: [row.project_name, row.company_name].filter(Boolean),
+    // A project and its company usually share a name; the result cards key
+    // each tag by value, so repeats collide as React keys.
+    tags: Array.from(new Set([row.project_name, row.company_name].filter(Boolean))),
     summary,
     projectId: row.project_id,
     context: row.context ?? undefined,
@@ -110,7 +117,7 @@ export function personFromCatalog(
       .join('')
       .slice(0, 2)
       .toUpperCase(),
-    expertise: row.expertise,
+    expertise: Array.from(new Set(row.expertise)),
     projectId: '',
     email: row.email,
     onCallRotation: row.is_on_call,
